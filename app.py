@@ -81,15 +81,25 @@ st.markdown(
     "@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700&display=swap');"
     ".stApp{background:linear-gradient(160deg,#fff6fa,#ffeaf3);}"
     "html,body,[class*='css'],p,span,div,label{font-family:'Nunito','Segoe UI',sans-serif;color:#5b3a4a;}"
-    ".stButton>button,.stFormSubmitButton>button{background:linear-gradient(135deg,#ff6fa5,#e85f96);"
-    "color:#fff;border:none;border-radius:20px;font-weight:800;font-family:'Baloo 2',sans-serif;"
-    "padding:10px 26px;box-shadow:0 6px 18px rgba(255,111,165,.28);}"
-    ".stButton>button:hover,.stFormSubmitButton>button:hover{color:#fff;transform:translateY(-2px);}"
-    ".stTextInput input,.stNumberInput input,.stTextArea textarea{border-radius:14px!important;border-color:#ffd6e6!important;}"
+    ".stButton>button,.stFormSubmitButton>button{background:linear-gradient(135deg,#ff6fa5,#e85f96)!important;"
+    "color:#fff!important;border:none!important;border-radius:26px!important;font-weight:800!important;"
+    "font-family:'Baloo 2',sans-serif!important;padding:12px 26px!important;"
+    "box-shadow:0 6px 18px rgba(255,111,165,.28)!important;}"
+    ".stButton>button *,.stFormSubmitButton>button *{font-family:'Baloo 2',sans-serif!important;font-weight:800!important;color:#fff!important;}"
+    ".stButton>button:hover,.stFormSubmitButton>button:hover{color:#fff!important;transform:translateY(-2px);}"
+    ".stTextInput input,.stNumberInput input,.stTextArea textarea{border-radius:26px!important;border-color:#ffd6e6!important;"
+    "font-family:'Nunito',sans-serif!important;color:#5b3a4a!important;padding:11px 18px!important;background:#fff!important;}"
+    ".stTextInput input::placeholder{color:#d6a7bc!important;}"
     "[data-testid='stSelectbox'] div[data-baseweb='select']>div{border-radius:14px!important;border-color:#ffd6e6!important;}"
     "[data-testid='stDialog'] div[role='dialog']{border-radius:26px;border:2px solid #ffd9e8;background:#fff;}"
+    "[data-testid='stFeedback'] button{color:#ffc93c!important;font-size:26px!important;background:transparent!important;"
+    "box-shadow:none!important;padding:2px 4px!important;transform:none!important;}"
+    "[data-testid='stFeedback'] button:hover{color:#ffb400!important;transform:scale(1.15)!important;}"
     "#MainMenu,footer,header[data-testid='stHeader']{visibility:hidden;}"
     "div.block-container{padding-top:1rem;max-width:1100px;}"
+    "iframe{margin-bottom:0!important;}"
+    "div[data-testid='stVerticalBlock']{gap:.5rem;}"
+    ".stButton{display:flex;align-items:center;height:100%;}"
     "</style>",
     unsafe_allow_html=True,
 )
@@ -127,7 +137,9 @@ def add_dialog():
         platform = st.text_input("Plataforma", placeholder="Ej. Webtoon, Telegram...")
         chapter = st.number_input("Capitulo actual", min_value=0, step=1, value=0)
         status = st.selectbox("Estado", list(STATUSES.keys()), format_func=lambda k: STATUSES[k])
-        rating = st.slider("Rating", 0, 5, 0)
+        st.markdown("**Rating**")
+        rating_sel = st.feedback("stars", key="add_rating")
+        rating = (rating_sel + 1) if rating_sel is not None else 0
         drive = st.text_input("Link de la carpeta en Drive", placeholder="Pega aqui el link (opcional)")
         comment = st.text_area("Comentario", placeholder="Que te parecio?")
         submitted = st.form_submit_button("Guardar ♡")
@@ -148,6 +160,9 @@ def add_dialog():
                 "drive": drive.strip(), "comment": comment.strip(),
             })
             save(manhwas)
+            # limpiar el rating para la próxima vez que se abra el diálogo
+            if "add_rating" in st.session_state:
+                del st.session_state["add_rating"]
             st.rerun()
  
  
@@ -345,11 +360,10 @@ HEADER = ("<div class='header'><h1>✿ Mi Rincon Manhwa ✿</h1>"
  
 # 1) HEADER + TABS como primer componente (las tabs solo cambian de vista con JS)
 PAGE_TOP = CSS + HEADER + "<div class='tabs'>" + tabs_html + "</div>" + JS_TABS
-components.html(PAGE_TOP, height=250, scrolling=False)
+components.html(PAGE_TOP, height=210, scrolling=False)
  
 # 2) Fila nativa: botón agregar + buscador (donde estaba, debajo de las secciones/pestañas)
-st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-c_add, c_search = st.columns([1, 2])
+c_add, c_search = st.columns([1, 2], vertical_alignment="center")
 with c_add:
     if st.button("＋ Agregar manhwa", use_container_width=True):
         add_dialog()
