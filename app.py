@@ -57,21 +57,6 @@ def cover_uri(m):
  
 manhwas = load()
  
-# ---- acciones por query params (vienen del iframe de tarjetas) ----
-qp = st.query_params
-if "tab" in qp:
-    t = qp["tab"]
-    if t in STATUSES or t == "todos":
-        st.session_state.active_tab = t
-    st.query_params.clear()
-    st.rerun()
-if "open" in qp:
-    try:
-        st.session_state.opening_id = int(qp["open"])
-    except Exception:
-        pass
-    st.query_params.clear()
-    st.rerun()
  
 # ---- CSS para la parte de Streamlit ----
 st.markdown(
@@ -98,6 +83,11 @@ st.markdown(
     "iframe{margin-bottom:0!important;}"
     "div[data-testid='stVerticalBlock']{gap:.5rem;}"
     ".stButton{display:flex;align-items:center;height:100%;}"
+    # pills (pestañas) rositas
+    "div[data-testid='stPills'] button{border-radius:30px!important;border:1.5px solid #ffd6e6!important;"
+    "font-family:'Baloo 2',sans-serif!important;font-weight:700!important;color:#9c7688!important;background:#fff!important;}"
+    "div[data-testid='stPills'] button[aria-selected='true'],div[data-testid='stPills'] button[data-selected='true']{"
+    "background:linear-gradient(135deg,#ff6fa5,#e85f96)!important;color:#fff!important;border-color:transparent!important;}"
     "</style>",
     unsafe_allow_html=True,
 )
@@ -206,54 +196,6 @@ def edit_dialog(m):
     manhwa_dialog(editing=m)
  
  
-@st.dialog("Opciones")
-def options_dialog(m):
-    st.markdown("<div style='font-family:Baloo 2,sans-serif;font-size:20px;color:#c94b81;"
-                "font-weight:800;margin-bottom:4px;'>" + esc(m["title"]) + "</div>",
-                unsafe_allow_html=True)
-    st.caption("¿Qué quieres hacer con este manhwa?")
- 
-    if not st.session_state.get("opt_confirm_del"):
-        o1, o2 = st.columns(2)
-        with o1:
-            if st.button("✏️ Editar", use_container_width=True, key="opt_edit"):
-                st.session_state.editing_now = m["id"]
-                st.rerun()
-        with o2:
-            if st.button("🗑 Eliminar", use_container_width=True, key="opt_del"):
-                st.session_state.opt_confirm_del = True
-                st.rerun()
-    else:
-        st.warning("¿Seguro que quieres eliminar **" + m["title"] + "**? Esto no se puede deshacer.")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Sí, eliminar", use_container_width=True, key="opt_del_yes"):
-                manhwas[:] = [x for x in manhwas if x["id"] != m["id"]]
-                save(manhwas)
-                st.session_state.pop("opt_confirm_del", None)
-                st.rerun()
-        with c2:
-            if st.button("Cancelar", use_container_width=True, key="opt_del_no"):
-                st.session_state.pop("opt_confirm_del", None)
-                st.rerun()
- 
- 
-# ---- Abrir el diálogo correcto según lo que se haya pedido ----
-# Si desde la ventanita de opciones se pulsó "Editar":
-if "editing_now" in st.session_state:
-    _eid = st.session_state.pop("editing_now")
-    st.session_state.pop("opening_id", None)
-    _t = next((m for m in manhwas if m["id"] == _eid), None)
-    if _t:
-        edit_dialog(_t)
-# Si se pulsó el lapicito de una tarjeta (?open=ID):
-elif "opening_id" in st.session_state:
-    _oid = st.session_state.opening_id
-    _t = next((m for m in manhwas if m["id"] == _oid), None)
-    if _t:
-        options_dialog(_t)
-    else:
-        st.session_state.pop("opening_id", None)
  
  
  
@@ -281,59 +223,9 @@ def stars(n):
     return out
  
  
-def card_html(m):
-    cov = cover_uri(m)
-    cover_style = ("background-image:url('" + cov + "')") if cov else ""
-    genre = ("<span class='genre-tag'>" + esc(m.get("genre")) + "</span>") if m.get("genre") else ""
-    drive = ("<a class='drive-ico' href='" + esc(m.get("drive")) + "' target='_blank' title='Abrir en Drive'>📁</a>") if m.get("drive") else ""
-    author = ("<div class='card-author'>✍️ " + esc(m.get("author")) + "</div>") if m.get("author") and m.get("author") != "—" else ""
-    chips = ""
-    if m.get("platform"):
-        chips += "<span class='chip'>▶ " + esc(m.get("platform")) + "</span>"
-    if m.get("chapter"):
-        chips += "<span class='chip'>Cap. " + esc(m.get("chapter")) + "</span>"
-    comment = ("<div class='comment'>💬 " + esc(m.get("comment")) + "</div>") if m.get("comment") else ""
-    mid = str(m["id"])
-    q_attr = esc((str(m.get("title", "")) + " " + str(m.get("author", ""))).lower())
-    return (
-        "<div class='card' data-q='" + q_attr + "'>"
-        "<div class='cover' style='" + cover_style + "'>"
-        "<span class='badge'><img src='" + ICON[m["status"]] + "'> " + STATUSES[m["status"]] + "</span>"
-        "<button class='edit-fab' onclick='openManhwa(" + mid + ")' title='Editar o eliminar'>" + PENCIL_SVG + "</button>"
-        + genre + "</div>"
-        "<div class='body'>"
-        "<div class='title-row'><div class='title'>" + esc(m["title"]) + "</div>" + drive + "</div>"
-        + author + "<div>" + chips + "</div>"
-        "<div class='stars'>" + stars(m.get("rating", 0)) + "</div>"
-        + comment +
-        "</div></div>"
-    )
- 
- 
-def grid(items):
-    if not items:
-        return ("<div class='empty'><div class='big'>🌸</div>"
-                "No hay manhwas aqui todavia.<br>Agrega uno desde la barra de la izquierda!</div>")
-    return "<div class='grid'>" + "".join(card_html(m) for m in items) + "</div>"
- 
- 
 def count(s):
     return sum(1 for m in manhwas if m["status"] == s)
  
- 
-tabs_def = [
-    ("todos", "<span style='font-size:16px'>✿</span> Todos", len(manhwas)),
-    ("leyendo", "<img src='" + ICON["leyendo"] + "'> Leyendo", count("leyendo")),
-    ("finalizado", "<img src='" + ICON["finalizado"] + "'> Finalizados", count("finalizado")),
-    ("pausa", "<img src='" + ICON["pausa"] + "'> En pausa", count("pausa")),
-    ("cancelada", "<img src='" + ICON["cancelada"] + "'> Canceladas", count("cancelada")),
-]
-active = st.session_state.get("active_tab", "todos")
-tabs_html = "".join(
-    "<button class='tab" + (" active" if k == active else "") + "' onclick=\"goTab('" + k + "')\">" + lbl +
-    "<span class='cnt'>" + str(c) + "</span></button>"
-    for k, lbl, c in tabs_def
-)
  
 CSS = """
 <style>
@@ -426,28 +318,41 @@ body{font-family:'Nunito',sans-serif;color:#5b3a4a;background:transparent;}
 </style>
 """
  
-JS = """
-<script>
-function goTab(k){ window.top.location.href='?tab='+k; }
-</script>
-"""
+# CSS para las tarjetas cuando se renderizan de forma NATIVA (sin iframe)
+CARD_CSS = (CSS.replace("<style>", "").replace("</style>", "") +
+            # la tarjeta nativa va pegada al popover de abajo
+            ".ncard{margin-bottom:0;border-bottom-left-radius:0;border-bottom-right-radius:0;}"
+            # el boton popover de opciones, estilo rosita, pegado a la tarjeta
+            "div[data-testid='stPopover']>button{background:#fff!important;color:#e85f96!important;"
+            "border:1.5px solid #ffd6e6!important;border-top:none!important;"
+            "border-radius:0 0 22px 22px!important;font-family:'Baloo 2',sans-serif!important;"
+            "font-weight:800!important;box-shadow:0 8px 24px rgba(255,111,165,.15)!important;"
+            "margin-top:-6px!important;margin-bottom:18px!important;padding:8px!important;}"
+            "div[data-testid='stPopover']>button:hover{background:#ffe9f2!important;color:#c94b81!important;}")
  
-JS_TABS = JS  # (usa goTab en los botones de pestaña)
- 
-JS_CARDS = """
-<script>
-function openManhwa(id){ window.top.location.href = '?open=' + id; }
-</script>
-"""
  
 HEADER = ("<div class='header'><h1>✿ Mi Rincon Manhwa ✿</h1>"
           "<p>Tu biblioteca personal <span class='heart'>♡</span> hecha con amor</p></div>")
  
-# 1) HEADER + TABS como primer componente (las tabs solo cambian de vista con JS)
-PAGE_TOP = CSS + HEADER + "<div class='tabs'>" + tabs_html + "</div>" + JS_TABS
-components.html(PAGE_TOP, height=210, scrolling=False)
+# 1) HEADER (solo visual) en un componente
+components.html(CSS + HEADER, height=140, scrolling=False)
  
-# 2) Fila nativa: botón agregar + buscador (donde estaba, debajo de las secciones/pestañas)
+# Pestañas NATIVAS (funcionan seguro). Usamos pills con el texto e icono en emoji.
+tab_keys = ["todos", "leyendo", "finalizado", "pausa", "cancelada"]
+tab_labels_native = {
+    "todos": "✿ Todos (" + str(len(manhwas)) + ")",
+    "leyendo": "📖 Leyendo (" + str(count("leyendo")) + ")",
+    "finalizado": "✅ Finalizados (" + str(count("finalizado")) + ")",
+    "pausa": "⏸ En pausa (" + str(count("pausa")) + ")",
+    "cancelada": "✖ Canceladas (" + str(count("cancelada")) + ")",
+}
+active_prev = st.session_state.get("active_tab", "todos")
+picked = st.pills("Secciones", tab_keys, format_func=lambda k: tab_labels_native[k],
+                  default=active_prev, label_visibility="collapsed", key="tab_pills")
+active = picked if picked else "todos"
+st.session_state.active_tab = active
+ 
+# 2) Fila nativa: botón agregar + buscador
 c_add, c_search = st.columns([1, 2], vertical_alignment="center")
 with c_add:
     if st.button("＋ Agregar manhwa", use_container_width=True):
@@ -456,8 +361,7 @@ with c_search:
     query = st.text_input("buscar", value="", placeholder="🔍 Buscar por nombre o autor...",
                           label_visibility="collapsed")
  
-# 3) Filtrar por búsqueda y mostrar SOLO la sección activa
-active = st.session_state.get("active_tab", "todos")
+# 3) Filtrar por búsqueda y por sección activa
 if query.strip():
     q = query.strip().lower()
     visible = [m for m in manhwas
@@ -467,8 +371,61 @@ else:
 if active != "todos":
     visible = [m for m in visible if m["status"] == active]
  
-PAGE_CARDS = CSS + grid(visible) + JS_CARDS
-rows = max(1, (len(visible) + 2) // 3)
-height = 120 + rows * 430
-components.html(PAGE_CARDS, height=height, scrolling=True)
+# 4) Mostrar las tarjetas (nativas, 3 por fila) con popover de opciones que SÍ funciona
+def card_inner_html(m):
+    """El contenido visual de la tarjeta (sin el botón de opciones, que es nativo)."""
+    cov = cover_uri(m)
+    cover_style = ("background-image:url('" + cov + "')") if cov else ""
+    genre = ("<span class='genre-tag'>" + esc(m.get("genre")) + "</span>") if m.get("genre") else ""
+    drive = ("<a class='drive-ico' href='" + esc(m.get("drive")) + "' target='_blank' title='Abrir en Drive'>📁</a>") if m.get("drive") else ""
+    author = ("<div class='card-author'>✍️ " + esc(m.get("author")) + "</div>") if m.get("author") and m.get("author") != "—" else ""
+    chips = ""
+    if m.get("platform"):
+        chips += "<span class='chip'>▶ " + esc(m.get("platform")) + "</span>"
+    if m.get("chapter"):
+        chips += "<span class='chip'>Cap. " + esc(m.get("chapter")) + "</span>"
+    comment = ("<div class='comment'>💬 " + esc(m.get("comment")) + "</div>") if m.get("comment") else ""
+    return (
+        "<div class='card ncard'>"
+        "<div class='cover' style='" + cover_style + "'>"
+        "<span class='badge'><img src='" + ICON[m["status"]] + "'> " + STATUSES[m["status"]] + "</span>"
+        + genre + "</div>"
+        "<div class='body'>"
+        "<div class='title-row'><div class='title'>" + esc(m["title"]) + "</div>" + drive + "</div>"
+        + author + "<div>" + chips + "</div>"
+        "<div class='stars'>" + stars(m.get("rating", 0)) + "</div>"
+        + comment +
+        "</div></div>"
+    )
+ 
+# CSS de tarjetas para el render nativo (una vez)
+st.markdown("<style>" + CARD_CSS + "</style>", unsafe_allow_html=True)
+ 
+if not visible:
+    st.markdown("<div class='empty'><div class='big'>🌸</div>"
+                "No hay manhwas aqui todavia.<br>Agrega uno con el boton de arriba!</div>",
+                unsafe_allow_html=True)
+else:
+    for row_start in range(0, len(visible), 3):
+        cols = st.columns(3)
+        for col, m in zip(cols, visible[row_start:row_start + 3]):
+            with col:
+                st.markdown(card_inner_html(m), unsafe_allow_html=True)
+                with st.popover("✏️ Opciones", use_container_width=True):
+                    st.markdown("**" + m["title"] + "**")
+                    pc1, pc2 = st.columns(2)
+                    with pc1:
+                        if st.button("✏️ Editar", key="ed_" + str(m["id"]), use_container_width=True):
+                            edit_dialog(m)
+                    with pc2:
+                        if st.button("🗑 Eliminar", key="dl_" + str(m["id"]), use_container_width=True):
+                            st.session_state["confirm_del_" + str(m["id"])] = True
+                            st.rerun()
+                    if st.session_state.get("confirm_del_" + str(m["id"])):
+                        st.warning("¿Seguro? Esto no se puede deshacer.")
+                        if st.button("Sí, eliminar", key="dy_" + str(m["id"]), use_container_width=True):
+                            manhwas[:] = [x for x in manhwas if x["id"] != m["id"]]
+                            save(manhwas)
+                            st.session_state.pop("confirm_del_" + str(m["id"]), None)
+                            st.rerun()
  
