@@ -68,6 +68,12 @@ if "setid" in qp and "to" in qp:
     save(manhwas)
     st.query_params.clear()
     st.rerun()
+if "tab" in qp:
+    t = qp["tab"]
+    if t in STATUSES or t == "todos":
+        st.session_state.active_tab = t
+    st.query_params.clear()
+    st.rerun()
  
 # ---- CSS para la parte de Streamlit ----
 st.markdown(
@@ -144,10 +150,6 @@ def add_dialog():
             save(manhwas)
             st.rerun()
  
-# Abrir el diálogo cuando el botón del HTML manda ?add=1
-if "add" in st.query_params:
-    st.query_params.clear()
-    add_dialog()
  
  
 # ---- helpers para el HTML ----
@@ -221,15 +223,11 @@ tabs_def = [
     ("pausa", "<img src='" + ICON["pausa"] + "'> En pausa", count("pausa")),
     ("cancelada", "<img src='" + ICON["cancelada"] + "'> Canceladas", count("cancelada")),
 ]
+active = st.session_state.get("active_tab", "todos")
 tabs_html = "".join(
-    "<button class='tab' data-k='" + k + "' onclick=\"setTab('" + k + "')\">" + lbl +
+    "<button class='tab" + (" active" if k == active else "") + "' onclick=\"goTab('" + k + "')\">" + lbl +
     "<span class='cnt'>" + str(c) + "</span></button>"
     for k, lbl, c in tabs_def
-)
-sections_html = "".join(
-    "<div class='section' data-k='" + k + "'>" +
-    grid(manhwas if k == "todos" else [m for m in manhwas if m["status"] == k]) + "</div>"
-    for k, _, _ in tabs_def
 )
  
 CSS = """
@@ -320,11 +318,14 @@ body{font-family:'Nunito',sans-serif;color:#5b3a4a;background:transparent;}
  
 JS = """
 <script>
-function setTab(k){
-  document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.k===k);});
-  document.querySelectorAll('.section').forEach(function(s){s.classList.toggle('show',s.dataset.k===k);});
-  document.querySelectorAll('.picker').forEach(function(p){p.classList.remove('open');});
-}
+function goTab(k){ window.top.location.href='?tab='+k; }
+</script>
+"""
+ 
+JS_TABS = JS  # (usa goTab en los botones de pestaña)
+ 
+JS_CARDS = """
+<script>
 function togglePk(e,id){
   e.stopPropagation();
   var pk=document.getElementById('pk'+id);
@@ -333,32 +334,42 @@ function togglePk(e,id){
   if(!was) pk.classList.add('open');
 }
 function setStatus(id,to){ window.top.location.href='?setid='+id+'&to='+to; }
-function openAdd(){ window.top.location.href='?add=1'; }
-function doSearch(){
-  var q=(document.getElementById('search').value||'').toLowerCase();
-  document.querySelectorAll('.card').forEach(function(c){
-    var t=(c.dataset.q||'');
-    c.style.display = t.indexOf(q)>-1 ? '' : 'none';
-  });
-}
 document.addEventListener('click',function(){
   document.querySelectorAll('.picker').forEach(function(p){p.classList.remove('open');});
 });
-setTab('todos');
 </script>
 """
  
 HEADER = ("<div class='header'><h1>✿ Mi Rincon Manhwa ✿</h1>"
           "<p>Tu biblioteca personal <span class='heart'>♡</span> hecha con amor</p></div>")
  
-TOOLBAR = ("<div class='toolbar'>"
-           "<a class='add-btn' onclick='openAdd()'>＋ Agregar manhwa</a>"
-           "<input class='search' id='search' placeholder='🔍 Buscar por nombre o autor...' oninput='doSearch()'>"
-           "</div>")
+# 1) HEADER + TABS como primer componente (las tabs solo cambian de vista con JS)
+PAGE_TOP = CSS + HEADER + "<div class='tabs'>" + tabs_html + "</div>" + JS_TABS
+components.html(PAGE_TOP, height=250, scrolling=False)
  
-PAGE = CSS + HEADER + "<div class='tabs'>" + tabs_html + "</div>" + TOOLBAR + sections_html + JS
+# 2) Fila nativa: botón agregar + buscador (donde estaba, debajo de las secciones/pestañas)
+st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+c_add, c_search = st.columns([1, 2])
+with c_add:
+    if st.button("＋ Agregar manhwa", use_container_width=True):
+        add_dialog()
+with c_search:
+    query = st.text_input("buscar", value="", placeholder="🔍 Buscar por nombre o autor...",
+                          label_visibility="collapsed")
  
-rows = max(1, (len(manhwas) + 2) // 3)
-height = 300 + rows * 440
-components.html(PAGE, height=height, scrolling=True)
+# 3) Filtrar por búsqueda y mostrar SOLO la sección activa
+active = st.session_state.get("active_tab", "todos")
+if query.strip():
+    q = query.strip().lower()
+    visible = [m for m in manhwas
+               if q in (str(m.get("title", "")) + " " + str(m.get("author", ""))).lower()]
+else:
+    visible = manhwas
+if active != "todos":
+    visible = [m for m in visible if m["status"] == active]
+ 
+PAGE_CARDS = CSS + grid(visible) + JS_CARDS
+rows = max(1, (len(visible) + 2) // 3)
+height = 120 + rows * 440
+components.html(PAGE_CARDS, height=height, scrolling=True)
  
