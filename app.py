@@ -39,35 +39,26 @@ def new_id(ms):
  
  
 def cover_uri(m):
-    if m.get("cover"):
-        p = os.path.join(BASE_DIR, m["cover"])
-        if os.path.exists(p):
-            ext = os.path.splitext(p)[1].lower().replace(".", "") or "png"
-            if ext == "jpg":
-                ext = "jpeg"
-            return "data:image/" + ext + ";base64," + base64.b64encode(open(p, "rb").read()).decode()
+    c = m.get("cover") or ""
+    if not c:
+        return ""
+    # nuevo formato: ya es un data URI base64 guardado en el JSON
+    if c.startswith("data:"):
+        return c
+    # formato antiguo: ruta a archivo
+    p = os.path.join(BASE_DIR, c)
+    if os.path.exists(p):
+        ext = os.path.splitext(p)[1].lower().replace(".", "") or "png"
+        if ext == "jpg":
+            ext = "jpeg"
+        return "data:image/" + ext + ";base64," + base64.b64encode(open(p, "rb").read()).decode()
     return ""
  
  
 manhwas = load()
  
-# ---- acciones por query params (cambiar estado / eliminar) ----
+# ---- acciones por query params: solo cambiar de pestaña (viene del iframe) ----
 qp = st.query_params
-if "del" in qp:
-    did = int(qp["del"])
-    manhwas = [m for m in manhwas if m["id"] != did]
-    save(manhwas)
-    st.query_params.clear()
-    st.rerun()
-if "setid" in qp and "to" in qp:
-    sid = int(qp["setid"])
-    to = qp["to"]
-    for m in manhwas:
-        if m["id"] == sid and to in STATUSES:
-            m["status"] = to
-    save(manhwas)
-    st.query_params.clear()
-    st.rerun()
 if "tab" in qp:
     t = qp["tab"]
     if t in STATUSES or t == "todos":
@@ -126,48 +117,102 @@ if "seen_splash" not in st.session_state:
     splash.empty()
  
  
-# ---- Diálogo: agregar manhwa (se abre con un botón) ----
-@st.dialog("✿ Nuevo manhwa")
-def add_dialog():
-    with st.form("add", clear_on_submit=False):
-        title = st.text_input("Nombre *", placeholder="Ej. Our sunny days")
+# ---- Diálogo: agregar o editar un manhwa ----
+def file_to_datauri(cover_file):
+    """Convierte la foto subida en un data URI base64 (se guarda dentro del JSON)."""
+    ext = cover_file.name.split(".")[-1].lower()
+    if ext == "jpg":
+        ext = "jpeg"
+    if ext not in ("png", "jpeg", "webp", "gif"):
+        ext = "png"
+    b = base64.b64encode(cover_file.getvalue()).decode()
+    return "data:image/" + ext + ";base64," + b
+ 
+ 
+def manhwa_dialog(editing=None):
+    """editing = dict del manhwa a editar, o None para uno nuevo."""
+    is_edit = editing is not None
+    d = editing or {}
+    rk = "rating_edit_" + str(d.get("id", "new"))
+    # inicializar el rating del widget con el valor actual (solo la primera vez que abre)
+    if rk not in st.session_state:
+        r0 = int(d.get("rating", 0))
+        st.session_state[rk] = (r0 - 1) if r0 > 0 else None
+ 
+    with st.form("mform", clear_on_submit=False):
+        title = st.text_input("Nombre *", value=d.get("title", ""), placeholder="Ej. Our sunny days")
         cover_file = st.file_uploader("Foto de portada", type=["png", "jpg", "jpeg", "webp"])
-        author = st.text_input("Autor", placeholder="Ej. Hajin")
-        genre = st.text_input("Genero", placeholder="Ej. Romance, BL, Fantasia...")
-        platform = st.text_input("Plataforma", placeholder="Ej. Webtoon, Telegram...")
-        chapter = st.number_input("Capitulo actual", min_value=0, step=1, value=0)
-        status = st.selectbox("Estado", list(STATUSES.keys()), format_func=lambda k: STATUSES[k])
-        st.markdown("**Rating**")
-        rating_sel = st.feedback("stars", key="add_rating")
+        if is_edit and d.get("cover"):
+            st.caption("Ya tiene portada. Sube otra solo si quieres cambiarla.")
+        author = st.text_input("Autor", value=d.get("author", ""), placeholder="Ej. Hajin")
+        genre = st.text_input("Genero", value=d.get("genre", ""), placeholder="Ej. Romance, BL, Fantasia...")
+        platform = st.text_input("Plataforma", value=d.get("platform", ""), placeholder="Ej. Webtoon, Telegram...")
+        chapter = st.number_input("Capitulo actual", min_value=0, step=1, value=int(d.get("chapter", 0)))
+        _stkeys = list(STATUSES.keys())
+        status = st.selectbox("Estado", _stkeys,
+                              index=_stkeys.index(d.get("status", "leyendo")) if d.get("status") in _stkeys else 0,
+                              format_func=lambda k: STATUSES[k])
+        st.markdown("**Rating** (opcional, ponlo cuando ya lo hayas leido)")
+        rating_sel = st.feedback("stars", key=rk)
         rating = (rating_sel + 1) if rating_sel is not None else 0
-        drive = st.text_input("Link de la carpeta en Drive", placeholder="Pega aqui el link (opcional)")
-        comment = st.text_area("Comentario", placeholder="Que te parecio?")
+        drive = st.text_input("Link de la carpeta en Drive", value=d.get("drive", ""),
+                              placeholder="Pega aqui el link (opcional)")
+        comment = st.text_area("Comentario", value=d.get("comment", ""), placeholder="Que te parecio?")
         submitted = st.form_submit_button("Guardar ♡")
+ 
     if submitted:
         if not title.strip():
             st.warning("Ponle un nombre al manhwa")
+            return
+        # portada: nueva subida -> base64; si no, conservar la que tenia
+        cover_val = d.get("cover", "")
+        if cover_file is not None:
+            cover_val = file_to_datauri(cover_file)
+ 
+        record = {
+            "id": d.get("id", new_id(manhwas)),
+            "title": title.strip(), "cover": cover_val,
+            "author": author.strip(), "genre": genre.strip(), "platform": platform.strip(),
+            "chapter": int(chapter), "status": status, "rating": int(rating),
+            "drive": drive.strip(), "comment": comment.strip(),
+        }
+        if is_edit:
+            for i, mm in enumerate(manhwas):
+                if mm["id"] == d["id"]:
+                    manhwas[i] = record
+                    break
         else:
-            cover_path = ""
-            if cover_file is not None:
-                ext = cover_file.name.split(".")[-1].lower()
-                fname = "cover_" + str(new_id(manhwas)) + "_" + str(int(datetime.now().timestamp())) + "." + ext
-                open(os.path.join(COVERS_DIR, fname), "wb").write(cover_file.getbuffer())
-                cover_path = os.path.join("data", "covers", fname)
-            manhwas.append({
-                "id": new_id(manhwas), "title": title.strip(), "cover": cover_path,
-                "author": author.strip(), "genre": genre.strip(), "platform": platform.strip(),
-                "chapter": int(chapter), "status": status, "rating": int(rating),
-                "drive": drive.strip(), "comment": comment.strip(),
-            })
-            save(manhwas)
-            # limpiar el rating para la próxima vez que se abra el diálogo
-            if "add_rating" in st.session_state:
-                del st.session_state["add_rating"]
-            st.rerun()
+            manhwas.append(record)
+        save(manhwas)
+        if rk in st.session_state:
+            del st.session_state[rk]
+        st.rerun()
+ 
+ 
+@st.dialog("✿ Nuevo manhwa")
+def add_dialog():
+    manhwa_dialog(editing=None)
+ 
+ 
+@st.dialog("✏️ Editar manhwa")
+def edit_dialog(m):
+    manhwa_dialog(editing=m)
  
  
  
 # ---- helpers para el HTML ----
+TRASH_SVG = ("<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' "
+             "stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+             "<polyline points='3 6 5 6 21 6'></polyline>"
+             "<path d='M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'></path>"
+             "<line x1='10' y1='11' x2='10' y2='17'></line><line x1='14' y1='11' x2='14' y2='17'></line></svg>")
+ 
+PENCIL_SVG = ("<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' "
+              "stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+              "<path d='M12 20h9'></path>"
+              "<path d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z'></path></svg>")
+ 
+ 
 def esc(s):
     return html.escape(str(s if s is not None else ""))
  
@@ -191,12 +236,6 @@ def card_html(m):
     if m.get("chapter"):
         chips += "<span class='chip'>Cap. " + esc(m.get("chapter")) + "</span>"
     comment = ("<div class='comment'>💬 " + esc(m.get("comment")) + "</div>") if m.get("comment") else ""
-    opts = ""
-    for k, lbl in STATUSES.items():
-        sel = "sel" if m["status"] == k else ""
-        chk = "✓" if m["status"] == k else ""
-        opts += ("<div class='opt " + sel + "' onclick=\"setStatus(" + str(m["id"]) + ",'" + k + "')\">"
-                 "<img src='" + ICON[k] + "'><span>" + lbl + "</span><span class='chk'>" + chk + "</span></div>")
     mid = str(m["id"])
     q_attr = esc((str(m.get("title", "")) + " " + str(m.get("author", ""))).lower())
     return (
@@ -209,14 +248,7 @@ def card_html(m):
         + author + "<div>" + chips + "</div>"
         "<div class='stars'>" + stars(m.get("rating", 0)) + "</div>"
         + comment +
-        "<div class='foot'>"
-        "<div class='picker' id='pk" + mid + "'>"
-        "<div class='trigger' onclick='togglePk(event," + mid + ")'>"
-        "<img src='" + ICON[m["status"]] + "'><span>" + STATUSES[m["status"]] + "</span><span class='caret'>▾</span></div>"
-        "<div class='menu'>" + opts + "</div></div>"
-        "<a class='del' href='?del=" + mid + "' target='_top' title='Eliminar' "
-        "onclick=\"return confirm('Eliminar este manhwa?')\">🗑</a>"
-        "</div></div></div>"
+        "</div></div>"
     )
  
  
@@ -323,9 +355,10 @@ body{font-family:'Nunito',sans-serif;color:#5b3a4a;background:transparent;}
 .opt.sel{background:linear-gradient(135deg,#ff6fa5,#e85f96);color:#fff;}
 .opt img{width:20px;height:20px;object-fit:contain;}
 .opt .chk{margin-left:auto;}
-.del{width:38px;display:flex;align-items:center;justify-content:center;background:#ffe9f2;
-  border-radius:14px;text-decoration:none;font-size:14px;transition:.15s;}
-.del:hover{background:#ffccdd;}
+.iconbtn{width:38px;display:flex;align-items:center;justify-content:center;background:#ffe9f2;
+  border-radius:14px;text-decoration:none;color:#e85f96;transition:.15s;flex-shrink:0;}
+.iconbtn:hover{background:#ffccdd;color:#c94b81;}
+.iconbtn.edit:hover{background:#ffe0b8;color:#d98a2b;}
 .empty{text-align:center;padding:50px 20px;color:#9c7688;}
 .empty .big{font-size:46px;margin-bottom:8px;}
 </style>
@@ -339,21 +372,7 @@ function goTab(k){ window.top.location.href='?tab='+k; }
  
 JS_TABS = JS  # (usa goTab en los botones de pestaña)
  
-JS_CARDS = """
-<script>
-function togglePk(e,id){
-  e.stopPropagation();
-  var pk=document.getElementById('pk'+id);
-  var was=pk.classList.contains('open');
-  document.querySelectorAll('.picker').forEach(function(p){p.classList.remove('open');});
-  if(!was) pk.classList.add('open');
-}
-function setStatus(id,to){ window.top.location.href='?setid='+id+'&to='+to; }
-document.addEventListener('click',function(){
-  document.querySelectorAll('.picker').forEach(function(p){p.classList.remove('open');});
-});
-</script>
-"""
+JS_CARDS = "<script></script>"
  
 HEADER = ("<div class='header'><h1>✿ Mi Rincon Manhwa ✿</h1>"
           "<p>Tu biblioteca personal <span class='heart'>♡</span> hecha con amor</p></div>")
@@ -384,6 +403,50 @@ if active != "todos":
  
 PAGE_CARDS = CSS + grid(visible) + JS_CARDS
 rows = max(1, (len(visible) + 2) // 3)
-height = 120 + rows * 440
+height = 120 + rows * 430
 components.html(PAGE_CARDS, height=height, scrolling=True)
+ 
+# 4) Gestor: elegir un manhwa y editarlo / cambiar estado / eliminarlo (nativo = siempre funciona)
+if manhwas:
+    st.markdown("---")
+    st.markdown("#### ✎ Editar o eliminar un manhwa")
+    id_to_manhwa = {m["id"]: m for m in manhwas}
+    options = [m["id"] for m in manhwas]
+ 
+    def _fmt(mid):
+        mm = id_to_manhwa[mid]
+        return mm["title"] + "  ·  " + STATUSES.get(mm["status"], "")
+ 
+    sel_id = st.selectbox("Elige un manhwa", options, format_func=_fmt, key="manage_sel")
+    sel_m = id_to_manhwa.get(sel_id)
+ 
+    g1, g2, g3 = st.columns([1.2, 1.6, 1])
+    with g1:
+        if st.button("✏️ Editar", use_container_width=True, key="btn_edit"):
+            edit_dialog(sel_m)
+    with g2:
+        new_st = st.selectbox("Cambiar estado a", list(STATUSES.keys()),
+                              index=list(STATUSES.keys()).index(sel_m["status"]),
+                              format_func=lambda k: STATUSES[k], key="manage_status",
+                              label_visibility="collapsed")
+        if new_st != sel_m["status"]:
+            sel_m["status"] = new_st
+            save(manhwas)
+            st.rerun()
+    with g3:
+        if st.button("🗑 Eliminar", use_container_width=True, key="btn_del"):
+            st.session_state.confirm_del = sel_id
+    if st.session_state.get("confirm_del") == sel_id:
+        st.warning("¿Seguro que quieres eliminar **" + sel_m["title"] + "**?")
+        cc1, cc2 = st.columns(2)
+        with cc1:
+            if st.button("Sí, eliminar", use_container_width=True, key="confirm_yes"):
+                manhwas[:] = [m for m in manhwas if m["id"] != sel_id]
+                save(manhwas)
+                del st.session_state["confirm_del"]
+                st.rerun()
+        with cc2:
+            if st.button("Cancelar", use_container_width=True, key="confirm_no"):
+                del st.session_state["confirm_del"]
+                st.rerun()
  
