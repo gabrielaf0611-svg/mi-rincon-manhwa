@@ -1,361 +1,312 @@
 # -*- coding: utf-8 -*-
 """
-✿ Mi Rincón Manhwa ✿
-App personal para llevar el control de tus manhwas.
-Hecha con Streamlit + mucho amor rosita ♡
+Mi Rincon Manhwa - app personal para llevar el control de tus manhwas.
+El diseno esta incrustado como HTML para verse identico al modelo.
 """
-
 import streamlit as st
-import json
-import os
-import base64
+import streamlit.components.v1 as components
+import json, os, base64, html
 from datetime import datetime
-
-# --------------------------------------------------------------------------
-# Configuración básica
-# --------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Mi Rincón Manhwa",
-    page_icon="🌸",
-    layout="wide",
-)
-
+from icons import ICON
+ 
+st.set_page_config(page_title="Mi Rincon Manhwa", page_icon="🌸", layout="wide")
+ 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "data", "manhwas.json")
 COVERS_DIR = os.path.join(BASE_DIR, "data", "covers")
-ASSETS_DIR = os.path.join(BASE_DIR, "assets")
-
 os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
 os.makedirs(COVERS_DIR, exist_ok=True)
-
-# Estados con su icono e info
-STATUSES = {
-    "leyendo":    {"label": "Leyendo",    "icon": "leyendo.png"},
-    "finalizado": {"label": "Finalizado", "icon": "finalizado.png"},
-    "pausa":      {"label": "En pausa",   "icon": "pausa.png"},
-    "cancelada":  {"label": "Cancelada",  "icon": "cancelada.png"},
-}
-
-# --------------------------------------------------------------------------
-# Utilidades de datos (guardado en archivo JSON local)
-# --------------------------------------------------------------------------
-def load_manhwas():
+ 
+STATUSES = {"leyendo": "Leyendo", "finalizado": "Finalizado",
+            "pausa": "En pausa", "cancelada": "Cancelada"}
+ 
+ 
+def load():
     if os.path.exists(DATA_FILE):
         try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+            return json.load(open(DATA_FILE, encoding="utf-8"))
         except Exception:
             return []
     return []
-
-
-def save_manhwas(manhwas):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(manhwas, f, ensure_ascii=False, indent=2)
-
-
-def next_id(manhwas):
-    return (max([m["id"] for m in manhwas]) + 1) if manhwas else 1
-
-
-def img_to_b64(path):
-    """Lee una imagen del disco y la devuelve como data URI base64."""
-    try:
-        with open(path, "rb") as f:
-            b = base64.b64encode(f.read()).decode()
-        ext = os.path.splitext(path)[1].lower().replace(".", "") or "png"
-        if ext == "jpg":
-            ext = "jpeg"
-        return f"data:image/{ext};base64,{b}"
-    except Exception:
-        return ""
-
-
-# Iconos de estado como data URI (para el HTML)
-ICON_URI = {k: img_to_b64(os.path.join(ASSETS_DIR, v["icon"])) for k, v in STATUSES.items()}
-
-# --------------------------------------------------------------------------
-# Estilos (rosa pastel + fuentes Baloo 2 / Nunito)
-# --------------------------------------------------------------------------
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap');
-
-/* Fondo general */
-.stApp {
-    background: linear-gradient(160deg,#fff6fa 0%,#ffeaf3 100%);
-}
-html, body, [class*="css"], .stMarkdown, p, span, div, label {
-    font-family:'Nunito','Segoe UI',sans-serif;
-    color:#5b3a4a;
-}
-h1,h2,h3,.baloo { font-family:'Baloo 2','Nunito',sans-serif !important; }
-
-/* Encabezado */
-.app-header{
-    text-align:center;padding:26px 20px 16px;
-    background:linear-gradient(135deg,#ffd9e8 0%,#ffc4dd 100%);
-    border-radius:24px;margin-bottom:8px;border:2px solid #ffb9d6;
-}
-.app-header h1{margin:2px 0;font-size:34px;color:#c94b81;text-shadow:0 2px 0 #fff;font-family:'Baloo 2',sans-serif;}
-.app-header p{margin:0;color:#c06390;font-size:14px;font-weight:600;}
-
-/* Tarjetas */
-.card{
-    background:#fff;border-radius:22px;padding:0 0 14px;overflow:hidden;
-    box-shadow:0 8px 24px rgba(255,111,165,.15);border:1.5px solid #ffd6e6;
-    margin-bottom:18px;
-}
-.cover{height:170px;background:linear-gradient(135deg,#ffd9e8,#ffc4dd);
-    background-size:cover;background-position:center;position:relative;}
-.status-badge{
-    position:absolute;top:10px;left:10px;background:#ffffffdd;color:#e85f96;
-    padding:4px 11px 4px 8px;border-radius:20px;font-size:11px;font-weight:700;
-    display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(200,75,129,.2);
-}
-.status-badge img{width:15px;height:15px;object-fit:contain;}
-.genre-tag{
-    position:absolute;bottom:10px;right:10px;background:#ffffffdd;color:#e85f96;
-    padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;
-}
-.card-pad{padding:12px 16px 0;}
-.card-title{font-size:17px;font-weight:700;color:#5b3a4a;font-family:'Baloo 2',sans-serif;
-    display:flex;align-items:center;gap:8px;line-height:1.2;}
-.drive-ico{width:26px;height:26px;border-radius:8px;background:#ffe9f2;display:inline-flex;
-    align-items:center;justify-content:center;text-decoration:none;font-size:14px;flex-shrink:0;}
-.drive-ico:hover{background:#ff9ec4;}
-.card-author{font-size:12px;color:#9c7688;margin:2px 0 6px;}
-.chip{display:inline-block;background:#ffe9f2;color:#e85f96;padding:3px 9px;border-radius:14px;
-    font-size:11px;font-weight:700;margin:0 4px 4px 0;}
-.stars{color:#ffc93c;font-size:16px;letter-spacing:2px;margin:4px 0;}
-.stars .empty{color:#ffe1a8;}
-.comment{font-size:12px;color:#9c7688;font-style:italic;background:#ffe9f2;
-    padding:7px 10px;border-radius:12px;margin-top:4px;line-height:1.35;}
-
-/* Botones Streamlit */
-.stButton>button{
-    background:linear-gradient(135deg,#ff6fa5,#e85f96);color:#fff;border:none;
-    border-radius:16px;font-weight:700;font-family:'Baloo 2',sans-serif;
-    padding:8px 16px;transition:.15s;
-}
-.stButton>button:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(255,111,165,.35);color:#fff;}
-
-/* Tabs */
-.stTabs [data-baseweb="tab-list"]{gap:8px;justify-content:center;}
-.stTabs [data-baseweb="tab"]{
-    background:#fff;border-radius:24px;padding:6px 18px;font-weight:700;
-    border:1.5px solid #ffd6e6;color:#9c7688;font-family:'Baloo 2',sans-serif;
-}
-.stTabs [aria-selected="true"]{
-    background:linear-gradient(135deg,#ff6fa5,#e85f96)!important;color:#fff!important;border-color:transparent!important;
-}
-
-/* Inputs */
-.stTextInput input,.stNumberInput input,.stTextArea textarea,.stSelectbox div[data-baseweb="select"]>div{
-    border-radius:14px!important;border-color:#ffd6e6!important;
-}
-#MainMenu,footer{visibility:hidden;}
-</style>
-""", unsafe_allow_html=True)
-
-
-# --------------------------------------------------------------------------
-# Opening / pantalla de bienvenida (solo la primera vez en la sesión)
-# --------------------------------------------------------------------------
-if "seen_splash" not in st.session_state:
-    st.session_state.seen_splash = True
-    splash = st.empty()
-    splash.markdown("""
-    <div style="position:fixed;inset:0;z-index:9999;
-        background:linear-gradient(160deg,#ffd9e8,#ffc4dd 55%,#ffb0d1);
-        display:flex;align-items:center;justify-content:center;text-align:center;">
-      <div>
-        <div style="font-size:70px;color:#fff;animation:beat 1.4s ease-in-out infinite;">✿</div>
-        <h1 style="font-family:'Baloo 2',sans-serif;font-size:38px;color:#c94b81;
-            text-shadow:0 2px 0 #fff;margin:10px 0 4px;">Mi Rincón Manhwa</h1>
-        <p style="color:#c06390;font-weight:700;">Tu biblioteca personal ♡</p>
-      </div>
-    </div>
-    <style>@keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}</style>
-    """, unsafe_allow_html=True)
-    import time
-    time.sleep(2.2)
-    splash.empty()
-
-
-# --------------------------------------------------------------------------
-# Encabezado
-# --------------------------------------------------------------------------
-st.markdown("""
-<div class="app-header">
-  <h1>✿ Mi Rincón Manhwa ✿</h1>
-  <p>Tu biblioteca personal ♡ hecha con amor</p>
-</div>
-""", unsafe_allow_html=True)
-
-
-# --------------------------------------------------------------------------
-# Cargar datos
-# --------------------------------------------------------------------------
-manhwas = load_manhwas()
-
-
-# --------------------------------------------------------------------------
-# Formulario para agregar (en la barra lateral)
-# --------------------------------------------------------------------------
-with st.sidebar:
-    st.markdown("### ✿ Agregar un manhwa")
-    with st.form("add_form", clear_on_submit=True):
-        title = st.text_input("Nombre *", placeholder="Ej. Our sunny days")
-        cover_file = st.file_uploader("Foto de portada", type=["png", "jpg", "jpeg", "webp"])
-        author = st.text_input("Autor", placeholder="Ej. Hajin")
-        genre = st.text_input("Género", placeholder="Ej. Romance, BL, Fantasía...")
-        platform = st.text_input("Plataforma", placeholder="Ej. Webtoon, Telegram...")
-        chapter = st.number_input("Capítulo actual", min_value=0, step=1, value=0)
-        status = st.selectbox("Estado", options=list(STATUSES.keys()),
-                              format_func=lambda k: STATUSES[k]["label"])
-        rating = st.slider("Rating ⭐", 0, 5, 0)
-        drive = st.text_input("Link de la carpeta en Drive",
-                              placeholder="Pega aquí el link (opcional)")
-        comment = st.text_area("Comentario", placeholder="¿Qué te pareció? ♡")
-
-        submitted = st.form_submit_button("Guardar ♡")
-        if submitted:
-            if not title.strip():
-                st.warning("Ponle un nombre al manhwa ♡")
-            else:
-                cover_path = ""
-                if cover_file is not None:
-                    ext = cover_file.name.split(".")[-1].lower()
-                    fname = f"cover_{next_id(manhwas)}_{int(datetime.now().timestamp())}.{ext}"
-                    fpath = os.path.join(COVERS_DIR, fname)
-                    with open(fpath, "wb") as f:
-                        f.write(cover_file.getbuffer())
-                    cover_path = os.path.join("data", "covers", fname)
-
-                manhwas.append({
-                    "id": next_id(manhwas),
-                    "title": title.strip(),
-                    "cover": cover_path,
-                    "author": author.strip(),
-                    "genre": genre.strip(),
-                    "platform": platform.strip(),
-                    "chapter": int(chapter),
-                    "status": status,
-                    "rating": int(rating),
-                    "drive": drive.strip(),
-                    "comment": comment.strip(),
-                })
-                save_manhwas(manhwas)
-                st.success(f"¡'{title.strip()}' agregado! ♡")
-                st.rerun()
-
-
-# --------------------------------------------------------------------------
-# Helpers de render
-# --------------------------------------------------------------------------
-def stars_html(n):
-    s = ""
-    for i in range(1, 6):
-        s += "★" if i <= n else '<span class="empty">★</span>'
-    return f'<div class="stars">{s}</div>'
-
-
+ 
+ 
+def save(ms):
+    json.dump(ms, open(DATA_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+ 
+ 
+def new_id(ms):
+    return (max([m["id"] for m in ms]) + 1) if ms else 1
+ 
+ 
 def cover_uri(m):
     if m.get("cover"):
         p = os.path.join(BASE_DIR, m["cover"])
         if os.path.exists(p):
-            return img_to_b64(p)
+            ext = os.path.splitext(p)[1].lower().replace(".", "") or "png"
+            if ext == "jpg":
+                ext = "jpeg"
+            return "data:image/" + ext + ";base64," + base64.b64encode(open(p, "rb").read()).decode()
     return ""
-
-
-def render_card(m):
-    st_info = STATUSES.get(m["status"], STATUSES["leyendo"])
+ 
+ 
+manhwas = load()
+ 
+# ---- acciones por query params (cambiar estado / eliminar) ----
+qp = st.query_params
+if "del" in qp:
+    did = int(qp["del"])
+    manhwas = [m for m in manhwas if m["id"] != did]
+    save(manhwas)
+    st.query_params.clear()
+    st.rerun()
+if "setid" in qp and "to" in qp:
+    sid = int(qp["setid"])
+    to = qp["to"]
+    for m in manhwas:
+        if m["id"] == sid and to in STATUSES:
+            m["status"] = to
+    save(manhwas)
+    st.query_params.clear()
+    st.rerun()
+ 
+# ---- CSS para la parte de Streamlit (barra lateral) ----
+st.markdown(
+    "<style>"
+    "@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700&display=swap');"
+    ".stApp{background:linear-gradient(160deg,#fff6fa,#ffeaf3);}"
+    "section[data-testid='stSidebar']{background:#fff0f6;border-right:2px solid #ffd6e6;}"
+    "section[data-testid='stSidebar'] *{font-family:'Nunito',sans-serif;color:#5b3a4a;}"
+    "section[data-testid='stSidebar'] h3{font-family:'Baloo 2',sans-serif;color:#c94b81;}"
+    ".stButton>button,.stFormSubmitButton>button{background:linear-gradient(135deg,#ff6fa5,#e85f96);"
+    "color:#fff;border:none;border-radius:16px;font-weight:700;font-family:'Baloo 2',sans-serif;width:100%;}"
+    ".stButton>button:hover,.stFormSubmitButton>button:hover{color:#fff;transform:translateY(-1px);}"
+    ".stTextInput input,.stNumberInput input,.stTextArea textarea{border-radius:14px!important;border-color:#ffd6e6!important;}"
+    "[data-testid='stSelectbox'] div[data-baseweb='select']>div{border-radius:14px!important;border-color:#ffd6e6!important;}"
+    "#MainMenu,footer,header[data-testid='stHeader']{visibility:hidden;}"
+    "div.block-container{padding-top:1rem;}"
+    "</style>",
+    unsafe_allow_html=True,
+)
+ 
+# ---- barra lateral: agregar manhwa ----
+with st.sidebar:
+    st.markdown("### ✿ Agregar un manhwa")
+    with st.form("add", clear_on_submit=True):
+        title = st.text_input("Nombre *", placeholder="Ej. Our sunny days")
+        cover_file = st.file_uploader("Foto de portada", type=["png", "jpg", "jpeg", "webp"])
+        author = st.text_input("Autor", placeholder="Ej. Hajin")
+        genre = st.text_input("Genero", placeholder="Ej. Romance, BL, Fantasia...")
+        platform = st.text_input("Plataforma", placeholder="Ej. Webtoon, Telegram...")
+        chapter = st.number_input("Capitulo actual", min_value=0, step=1, value=0)
+        status = st.selectbox("Estado", list(STATUSES.keys()), format_func=lambda k: STATUSES[k])
+        rating = st.slider("Rating", 0, 5, 0)
+        drive = st.text_input("Link de la carpeta en Drive", placeholder="Pega aqui el link (opcional)")
+        comment = st.text_area("Comentario", placeholder="Que te parecio?")
+        if st.form_submit_button("Guardar"):
+            if not title.strip():
+                st.warning("Ponle un nombre al manhwa")
+            else:
+                cover_path = ""
+                if cover_file is not None:
+                    ext = cover_file.name.split(".")[-1].lower()
+                    fname = "cover_" + str(new_id(manhwas)) + "_" + str(int(datetime.now().timestamp())) + "." + ext
+                    open(os.path.join(COVERS_DIR, fname), "wb").write(cover_file.getbuffer())
+                    cover_path = os.path.join("data", "covers", fname)
+                manhwas.append({
+                    "id": new_id(manhwas), "title": title.strip(), "cover": cover_path,
+                    "author": author.strip(), "genre": genre.strip(), "platform": platform.strip(),
+                    "chapter": int(chapter), "status": status, "rating": int(rating),
+                    "drive": drive.strip(), "comment": comment.strip(),
+                })
+                save(manhwas)
+                st.success("Agregado! Recarga si no lo ves.")
+                st.rerun()
+    st.caption("Tus manhwas se guardan solos.")
+ 
+ 
+# ---- helpers para el HTML ----
+def esc(s):
+    return html.escape(str(s if s is not None else ""))
+ 
+ 
+def stars(n):
+    out = ""
+    for i in range(1, 6):
+        out += "★" if i <= n else "<span class='empty'>★</span>"
+    return out
+ 
+ 
+def card_html(m):
     cov = cover_uri(m)
-    cover_style = f"background-image:url('{cov}')" if cov else ""
-    genre_tag = f'<span class="genre-tag">{m["genre"]}</span>' if m.get("genre") else ""
-    drive_ico = (f'<a class="drive-ico" href="{m["drive"]}" target="_blank" '
-                 f'title="Abrir carpeta en Drive">📁</a>') if m.get("drive") else ""
-    author = f'<div class="card-author">✍️ {m["author"]}</div>' if m.get("author") and m["author"] != "—" else ""
+    cover_style = ("background-image:url('" + cov + "')") if cov else ""
+    genre = ("<span class='genre-tag'>" + esc(m.get("genre")) + "</span>") if m.get("genre") else ""
+    drive = ("<a class='drive-ico' href='" + esc(m.get("drive")) + "' target='_blank' title='Abrir en Drive'>📁</a>") if m.get("drive") else ""
+    author = ("<div class='card-author'>✍️ " + esc(m.get("author")) + "</div>") if m.get("author") and m.get("author") != "—" else ""
     chips = ""
     if m.get("platform"):
-        chips += f'<span class="chip">▶ {m["platform"]}</span>'
+        chips += "<span class='chip'>▶ " + esc(m.get("platform")) + "</span>"
     if m.get("chapter"):
-        chips += f'<span class="chip">Cap. {m["chapter"]}</span>'
-    comment = f'<div class="comment">💬 {m["comment"]}</div>' if m.get("comment") else ""
-
-    st.markdown(f"""
-    <div class="card">
-      <div class="cover" style="{cover_style}">
-        <span class="status-badge"><img src="{ICON_URI[m['status']]}"> {st_info['label']}</span>
-        {genre_tag}
-      </div>
-      <div class="card-pad">
-        <div class="card-title">{m['title']} {drive_ico}</div>
-        {author}
-        <div>{chips}</div>
-        {stars_html(m.get('rating', 0))}
-        {comment}
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Controles: cambiar estado + eliminar
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        new_status = st.selectbox(
-            "Estado", options=list(STATUSES.keys()),
-            index=list(STATUSES.keys()).index(m["status"]),
-            format_func=lambda k: STATUSES[k]["label"],
-            key=f"status_{m['id']}", label_visibility="collapsed",
-        )
-        if new_status != m["status"]:
-            m["status"] = new_status
-            save_manhwas(manhwas)
-            st.rerun()
-    with c2:
-        if st.button("🗑", key=f"del_{m['id']}", help="Eliminar"):
-            manhwas.remove(m)
-            save_manhwas(manhwas)
-            st.rerun()
-
-
-def render_grid(items):
+        chips += "<span class='chip'>Cap. " + esc(m.get("chapter")) + "</span>"
+    comment = ("<div class='comment'>💬 " + esc(m.get("comment")) + "</div>") if m.get("comment") else ""
+    opts = ""
+    for k, lbl in STATUSES.items():
+        sel = "sel" if m["status"] == k else ""
+        chk = "✓" if m["status"] == k else ""
+        opts += ("<div class='opt " + sel + "' onclick=\"setStatus(" + str(m["id"]) + ",'" + k + "')\">"
+                 "<img src='" + ICON[k] + "'><span>" + lbl + "</span><span class='chk'>" + chk + "</span></div>")
+    mid = str(m["id"])
+    return (
+        "<div class='card'>"
+        "<div class='cover' style='" + cover_style + "'>"
+        "<span class='badge'><img src='" + ICON[m["status"]] + "'> " + STATUSES[m["status"]] + "</span>"
+        + genre + "</div>"
+        "<div class='body'>"
+        "<div class='title-row'><div class='title'>" + esc(m["title"]) + "</div>" + drive + "</div>"
+        + author + "<div>" + chips + "</div>"
+        "<div class='stars'>" + stars(m.get("rating", 0)) + "</div>"
+        + comment +
+        "<div class='foot'>"
+        "<div class='picker' id='pk" + mid + "'>"
+        "<div class='trigger' onclick='togglePk(event," + mid + ")'>"
+        "<img src='" + ICON[m["status"]] + "'><span>" + STATUSES[m["status"]] + "</span><span class='caret'>▾</span></div>"
+        "<div class='menu'>" + opts + "</div></div>"
+        "<a class='del' href='?del=" + mid + "' target='_top' title='Eliminar' "
+        "onclick=\"return confirm('Eliminar este manhwa?')\">🗑</a>"
+        "</div></div></div>"
+    )
+ 
+ 
+def grid(items):
     if not items:
-        st.markdown(
-            "<div style='text-align:center;padding:50px;color:#9c7688;'>"
-            "<div style='font-size:46px'>🌸</div>"
-            "No hay manhwas aquí todavía.<br>¡Agrega uno desde la barra de la izquierda!</div>",
-            unsafe_allow_html=True)
-        return
-    cols = st.columns(3)
-    for i, m in enumerate(items):
-        with cols[i % 3]:
-            render_card(m)
-
-
-# --------------------------------------------------------------------------
-# Secciones (tabs)
-# --------------------------------------------------------------------------
-def count(status):
-    return sum(1 for m in manhwas if m["status"] == status)
-
-tab_labels = [
-    f"✿ Todos ({len(manhwas)})",
-    f"📖 Leyendo ({count('leyendo')})",
-    f"✅ Finalizados ({count('finalizado')})",
-    f"⏸ En pausa ({count('pausa')})",
-    f"✖ Canceladas ({count('cancelada')})",
+        return ("<div class='empty'><div class='big'>🌸</div>"
+                "No hay manhwas aqui todavia.<br>Agrega uno desde la barra de la izquierda!</div>")
+    return "<div class='grid'>" + "".join(card_html(m) for m in items) + "</div>"
+ 
+ 
+def count(s):
+    return sum(1 for m in manhwas if m["status"] == s)
+ 
+ 
+tabs_def = [
+    ("todos", "<span style='font-size:16px'>✿</span> Todos", len(manhwas)),
+    ("leyendo", "<img src='" + ICON["leyendo"] + "'> Leyendo", count("leyendo")),
+    ("finalizado", "<img src='" + ICON["finalizado"] + "'> Finalizados", count("finalizado")),
+    ("pausa", "<img src='" + ICON["pausa"] + "'> En pausa", count("pausa")),
+    ("cancelada", "<img src='" + ICON["cancelada"] + "'> Canceladas", count("cancelada")),
 ]
-tabs = st.tabs(tab_labels)
-
-with tabs[0]:
-    render_grid(manhwas)
-with tabs[1]:
-    render_grid([m for m in manhwas if m["status"] == "leyendo"])
-with tabs[2]:
-    render_grid([m for m in manhwas if m["status"] == "finalizado"])
-with tabs[3]:
-    render_grid([m for m in manhwas if m["status"] == "pausa"])
-with tabs[4]:
-    render_grid([m for m in manhwas if m["status"] == "cancelada"])
+tabs_html = "".join(
+    "<button class='tab' data-k='" + k + "' onclick=\"setTab('" + k + "')\">" + lbl +
+    "<span class='cnt'>" + str(c) + "</span></button>"
+    for k, lbl, c in tabs_def
+)
+sections_html = "".join(
+    "<div class='section' data-k='" + k + "'>" +
+    grid(manhwas if k == "todos" else [m for m in manhwas if m["status"] == k]) + "</div>"
+    for k, _, _ in tabs_def
+)
+ 
+CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Nunito',sans-serif;color:#5b3a4a;background:transparent;}
+.header{text-align:center;padding:26px 20px 18px;background:linear-gradient(135deg,#ffd9e8,#ffc4dd);
+  border-radius:24px;border:2px solid #ffb9d6;margin-bottom:18px;}
+.header h1{font-family:'Baloo 2',sans-serif;font-size:34px;color:#c94b81;text-shadow:0 2px 0 #fff;}
+.header p{color:#c06390;font-weight:700;font-size:14px;margin-top:2px;}
+.heart{color:#e85f96;}
+.tabs{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:22px;}
+.tab{border:none;cursor:pointer;background:#fff;color:#9c7688;padding:9px 18px;border-radius:30px;
+  font-size:14px;font-weight:700;font-family:'Baloo 2',sans-serif;box-shadow:0 6px 16px rgba(255,111,165,.15);
+  border:1.5px solid #ffd6e6;display:flex;align-items:center;gap:7px;transition:.2s;}
+.tab img{width:18px;height:18px;object-fit:contain;}
+.tab:hover{transform:translateY(-2px);}
+.tab.active{background:linear-gradient(135deg,#ff6fa5,#e85f96);color:#fff;border-color:transparent;}
+.tab .cnt{background:#ffe9f2;color:#e85f96;border-radius:20px;padding:0 8px;font-size:12px;}
+.tab.active .cnt{background:rgba(255,255,255,.27);color:#fff;}
+.section{display:none;}
+.section.show{display:block;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:20px;}
+.card{background:#fff;border-radius:22px;box-shadow:0 8px 24px rgba(255,111,165,.15);
+  border:1.5px solid #ffd6e6;overflow:visible;display:flex;flex-direction:column;transition:.2s;}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(255,111,165,.28);}
+.cover{height:175px;background:linear-gradient(135deg,#ffd9e8,#ffc4dd);background-size:cover;
+  background-position:center;position:relative;border-radius:22px 22px 0 0;}
+.badge{position:absolute;top:10px;left:10px;background:rgba(255,255,255,.87);color:#e85f96;
+  padding:4px 11px 4px 8px;border-radius:20px;font-size:11px;font-weight:800;display:flex;
+  align-items:center;gap:5px;box-shadow:0 2px 8px rgba(200,75,129,.2);}
+.badge img{width:15px;height:15px;object-fit:contain;}
+.genre-tag{position:absolute;bottom:10px;right:10px;background:rgba(255,255,255,.87);color:#e85f96;
+  padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800;}
+.body{padding:14px;display:flex;flex-direction:column;gap:8px;flex:1;}
+.title-row{display:flex;align-items:flex-start;gap:8px;}
+.title{font-size:16px;font-weight:700;font-family:'Baloo 2',sans-serif;color:#5b3a4a;line-height:1.2;flex:1;}
+.drive-ico{flex-shrink:0;width:30px;height:30px;border-radius:10px;background:#ffe9f2;display:flex;
+  align-items:center;justify-content:center;text-decoration:none;font-size:15px;transition:.15s;}
+.drive-ico:hover{background:#ff9ec4;transform:scale(1.08);}
+.card-author{font-size:12px;color:#9c7688;margin-top:-4px;}
+.chip{display:inline-block;background:#ffe9f2;color:#e85f96;padding:3px 9px;border-radius:14px;
+  font-size:11px;font-weight:700;margin:0 4px 4px 0;}
+.stars{color:#ffc93c;font-size:16px;letter-spacing:2px;}
+.stars .empty{color:#ffe1a8;}
+.comment{font-size:12px;color:#9c7688;font-style:italic;background:#ffe9f2;padding:8px 10px;
+  border-radius:12px;line-height:1.35;}
+.foot{display:flex;gap:6px;margin-top:auto;padding-top:6px;position:relative;}
+.picker{flex:1;position:relative;}
+.trigger{width:100%;border:1.5px solid #ffd6e6;border-radius:16px;padding:7px 10px;font-size:12px;
+  color:#5b3a4a;background:#ffe9f2;cursor:pointer;font-weight:700;display:flex;align-items:center;gap:6px;}
+.trigger:hover{background:#ffdcea;}
+.trigger img{width:16px;height:16px;object-fit:contain;}
+.trigger .caret{margin-left:auto;color:#e85f96;transition:.2s;}
+.picker.open .caret{transform:rotate(180deg);}
+.menu{position:absolute;bottom:calc(100% + 8px);left:0;right:0;z-index:30;background:#fff;border-radius:18px;
+  padding:6px;box-shadow:0 12px 30px rgba(200,75,129,.28);border:2px solid #ffd9e8;opacity:0;
+  transform:translateY(8px) scale(.96);pointer-events:none;transform-origin:bottom center;
+  transition:opacity .18s ease,transform .18s cubic-bezier(.34,1.56,.64,1);}
+.picker.open .menu{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
+.menu::after{content:'';position:absolute;bottom:-9px;left:24px;width:16px;height:16px;background:#fff;
+  border-right:2px solid #ffd9e8;border-bottom:2px solid #ffd9e8;transform:rotate(45deg);border-radius:0 0 4px 0;}
+.opt{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:13px;cursor:pointer;
+  font-size:13px;font-weight:700;color:#5b3a4a;transition:.12s;}
+.opt:hover{background:#ffe9f2;}
+.opt.sel{background:linear-gradient(135deg,#ff6fa5,#e85f96);color:#fff;}
+.opt img{width:20px;height:20px;object-fit:contain;}
+.opt .chk{margin-left:auto;}
+.del{width:38px;display:flex;align-items:center;justify-content:center;background:#ffe9f2;
+  border-radius:14px;text-decoration:none;font-size:14px;transition:.15s;}
+.del:hover{background:#ffccdd;}
+.empty{text-align:center;padding:50px 20px;color:#9c7688;}
+.empty .big{font-size:46px;margin-bottom:8px;}
+</style>
+"""
+ 
+JS = """
+<script>
+function setTab(k){
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.k===k);});
+  document.querySelectorAll('.section').forEach(function(s){s.classList.toggle('show',s.dataset.k===k);});
+  document.querySelectorAll('.picker').forEach(function(p){p.classList.remove('open');});
+}
+function togglePk(e,id){
+  e.stopPropagation();
+  var pk=document.getElementById('pk'+id);
+  var was=pk.classList.contains('open');
+  document.querySelectorAll('.picker').forEach(function(p){p.classList.remove('open');});
+  if(!was) pk.classList.add('open');
+}
+function setStatus(id,to){ window.top.location.href='?setid='+id+'&to='+to; }
+document.addEventListener('click',function(){
+  document.querySelectorAll('.picker').forEach(function(p){p.classList.remove('open');});
+});
+setTab('todos');
+</script>
+"""
+ 
+HEADER = ("<div class='header'><h1>✿ Mi Rincon Manhwa ✿</h1>"
+          "<p>Tu biblioteca personal <span class='heart'>♡</span> hecha con amor</p></div>")
+ 
+PAGE = CSS + HEADER + "<div class='tabs'>" + tabs_html + "</div>" + sections_html + JS
+ 
+rows = max(1, (len(manhwas) + 2) // 3)
+height = 300 + rows * 440
+components.html(PAGE, height=height, scrolling=True)
