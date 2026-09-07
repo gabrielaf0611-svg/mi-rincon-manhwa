@@ -69,29 +69,51 @@ if "setid" in qp and "to" in qp:
     st.query_params.clear()
     st.rerun()
  
-# ---- CSS para la parte de Streamlit (barra lateral) ----
+# ---- CSS para la parte de Streamlit ----
 st.markdown(
     "<style>"
     "@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700&display=swap');"
     ".stApp{background:linear-gradient(160deg,#fff6fa,#ffeaf3);}"
-    "section[data-testid='stSidebar']{background:#fff0f6;border-right:2px solid #ffd6e6;}"
-    "section[data-testid='stSidebar'] *{font-family:'Nunito',sans-serif;color:#5b3a4a;}"
-    "section[data-testid='stSidebar'] h3{font-family:'Baloo 2',sans-serif;color:#c94b81;}"
+    "html,body,[class*='css'],p,span,div,label{font-family:'Nunito','Segoe UI',sans-serif;color:#5b3a4a;}"
     ".stButton>button,.stFormSubmitButton>button{background:linear-gradient(135deg,#ff6fa5,#e85f96);"
-    "color:#fff;border:none;border-radius:16px;font-weight:700;font-family:'Baloo 2',sans-serif;width:100%;}"
-    ".stButton>button:hover,.stFormSubmitButton>button:hover{color:#fff;transform:translateY(-1px);}"
+    "color:#fff;border:none;border-radius:20px;font-weight:800;font-family:'Baloo 2',sans-serif;"
+    "padding:10px 26px;box-shadow:0 6px 18px rgba(255,111,165,.28);}"
+    ".stButton>button:hover,.stFormSubmitButton>button:hover{color:#fff;transform:translateY(-2px);}"
     ".stTextInput input,.stNumberInput input,.stTextArea textarea{border-radius:14px!important;border-color:#ffd6e6!important;}"
     "[data-testid='stSelectbox'] div[data-baseweb='select']>div{border-radius:14px!important;border-color:#ffd6e6!important;}"
+    "[data-testid='stDialog'] div[role='dialog']{border-radius:26px;border:2px solid #ffd9e8;background:#fff;}"
     "#MainMenu,footer,header[data-testid='stHeader']{visibility:hidden;}"
-    "div.block-container{padding-top:1rem;}"
+    "div.block-container{padding-top:1rem;max-width:1100px;}"
     "</style>",
     unsafe_allow_html=True,
 )
  
-# ---- barra lateral: agregar manhwa ----
-with st.sidebar:
-    st.markdown("### ✿ Agregar un manhwa")
-    with st.form("add", clear_on_submit=True):
+# ---- Opening / pantalla de bienvenida (solo la primera vez) ----
+if "seen_splash" not in st.session_state:
+    st.session_state.seen_splash = True
+    splash = st.empty()
+    splash.markdown(
+        "<div style='position:fixed;inset:0;z-index:99999;"
+        "background:linear-gradient(160deg,#ffd9e8,#ffc4dd 55%,#ffb0d1);"
+        "display:flex;align-items:center;justify-content:center;text-align:center;'>"
+        "<div>"
+        "<div style='font-size:72px;color:#fff;animation:beat 1.4s ease-in-out infinite;'>✿</div>"
+        "<div style='font-family:Baloo 2,sans-serif;font-size:40px;color:#c94b81;"
+        "text-shadow:0 2px 0 #fff;margin:10px 0 4px;font-weight:800;'>Mi Rincon Manhwa</div>"
+        "<div style='color:#c06390;font-weight:700;font-family:Nunito,sans-serif;'>Tu biblioteca personal ♡</div>"
+        "</div></div>"
+        "<style>@keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}</style>",
+        unsafe_allow_html=True,
+    )
+    import time
+    time.sleep(2.2)
+    splash.empty()
+ 
+ 
+# ---- Diálogo: agregar manhwa (se abre con un botón) ----
+@st.dialog("✿ Nuevo manhwa")
+def add_dialog():
+    with st.form("add", clear_on_submit=False):
         title = st.text_input("Nombre *", placeholder="Ej. Our sunny days")
         cover_file = st.file_uploader("Foto de portada", type=["png", "jpg", "jpeg", "webp"])
         author = st.text_input("Autor", placeholder="Ej. Hajin")
@@ -102,26 +124,31 @@ with st.sidebar:
         rating = st.slider("Rating", 0, 5, 0)
         drive = st.text_input("Link de la carpeta en Drive", placeholder="Pega aqui el link (opcional)")
         comment = st.text_area("Comentario", placeholder="Que te parecio?")
-        if st.form_submit_button("Guardar"):
-            if not title.strip():
-                st.warning("Ponle un nombre al manhwa")
-            else:
-                cover_path = ""
-                if cover_file is not None:
-                    ext = cover_file.name.split(".")[-1].lower()
-                    fname = "cover_" + str(new_id(manhwas)) + "_" + str(int(datetime.now().timestamp())) + "." + ext
-                    open(os.path.join(COVERS_DIR, fname), "wb").write(cover_file.getbuffer())
-                    cover_path = os.path.join("data", "covers", fname)
-                manhwas.append({
-                    "id": new_id(manhwas), "title": title.strip(), "cover": cover_path,
-                    "author": author.strip(), "genre": genre.strip(), "platform": platform.strip(),
-                    "chapter": int(chapter), "status": status, "rating": int(rating),
-                    "drive": drive.strip(), "comment": comment.strip(),
-                })
-                save(manhwas)
-                st.success("Agregado! Recarga si no lo ves.")
-                st.rerun()
-    st.caption("Tus manhwas se guardan solos.")
+        submitted = st.form_submit_button("Guardar ♡")
+    if submitted:
+        if not title.strip():
+            st.warning("Ponle un nombre al manhwa")
+        else:
+            cover_path = ""
+            if cover_file is not None:
+                ext = cover_file.name.split(".")[-1].lower()
+                fname = "cover_" + str(new_id(manhwas)) + "_" + str(int(datetime.now().timestamp())) + "." + ext
+                open(os.path.join(COVERS_DIR, fname), "wb").write(cover_file.getbuffer())
+                cover_path = os.path.join("data", "covers", fname)
+            manhwas.append({
+                "id": new_id(manhwas), "title": title.strip(), "cover": cover_path,
+                "author": author.strip(), "genre": genre.strip(), "platform": platform.strip(),
+                "chapter": int(chapter), "status": status, "rating": int(rating),
+                "drive": drive.strip(), "comment": comment.strip(),
+            })
+            save(manhwas)
+            st.rerun()
+ 
+# Botón centrado para abrir el diálogo
+bcol1, bcol2, bcol3 = st.columns([1, 2, 1])
+with bcol2:
+    if st.button("＋ Agregar manhwa", use_container_width=True):
+        add_dialog()
  
  
 # ---- helpers para el HTML ----
@@ -310,3 +337,4 @@ PAGE = CSS + HEADER + "<div class='tabs'>" + tabs_html + "</div>" + sections_htm
 rows = max(1, (len(manhwas) + 2) // 3)
 height = 300 + rows * 440
 components.html(PAGE, height=height, scrolling=True)
+ 
