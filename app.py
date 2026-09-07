@@ -253,7 +253,7 @@ body{font-family:'Nunito',sans-serif;color:#5b3a4a;background:transparent;}
 .search{flex:1;min-width:180px;max-width:340px;border:1.5px solid #ffd6e6;border-radius:30px;
   padding:11px 18px;font-size:14px;background:#fff;color:#5b3a4a;outline:none;font-family:'Nunito',sans-serif;}
 .search::placeholder{color:#d6a7bc;}
-.tabs{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:22px;}
+.tabs{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:18px;}
 .tab{border:none;cursor:pointer;background:#fff;color:#9c7688;padding:9px 18px;border-radius:30px;
   font-size:14px;font-weight:700;font-family:'Baloo 2',sans-serif;box-shadow:0 6px 16px rgba(255,111,165,.15);
   border:1.5px solid #ffd6e6;display:flex;align-items:center;gap:7px;transition:.2s;}
@@ -356,7 +356,7 @@ TOOLBAR = ("<div class='toolbar'>"
            "<input class='search' id='search' placeholder='🔍 Buscar por nombre o autor...' oninput='doSearch()'>"
            "</div>")
  
-PAGE = CSS + HEADER + TOOLBAR + "<div class='tabs'>" + tabs_html + "</div>" + sections_html + JS
+PAGE = CSS + HEADER + "<div class='tabs'>" + tabs_html + "</div>" + TOOLBAR + sections_html + JS
  
 rows = max(1, (len(manhwas) + 2) // 3)
 height = 300 + rows * 440
