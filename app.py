@@ -57,12 +57,19 @@ def cover_uri(m):
  
 manhwas = load()
  
-# ---- acciones por query params: solo cambiar de pestaña (viene del iframe) ----
+# ---- acciones por query params (vienen del iframe de tarjetas) ----
 qp = st.query_params
 if "tab" in qp:
     t = qp["tab"]
     if t in STATUSES or t == "todos":
         st.session_state.active_tab = t
+    st.query_params.clear()
+    st.rerun()
+if "open" in qp:
+    try:
+        st.session_state.opening_id = int(qp["open"])
+    except Exception:
+        pass
     st.query_params.clear()
     st.rerun()
  
@@ -199,6 +206,56 @@ def edit_dialog(m):
     manhwa_dialog(editing=m)
  
  
+@st.dialog("Opciones")
+def options_dialog(m):
+    st.markdown("<div style='font-family:Baloo 2,sans-serif;font-size:20px;color:#c94b81;"
+                "font-weight:800;margin-bottom:4px;'>" + esc(m["title"]) + "</div>",
+                unsafe_allow_html=True)
+    st.caption("¿Qué quieres hacer con este manhwa?")
+ 
+    if not st.session_state.get("opt_confirm_del"):
+        o1, o2 = st.columns(2)
+        with o1:
+            if st.button("✏️ Editar", use_container_width=True, key="opt_edit"):
+                st.session_state.editing_now = m["id"]
+                st.rerun()
+        with o2:
+            if st.button("🗑 Eliminar", use_container_width=True, key="opt_del"):
+                st.session_state.opt_confirm_del = True
+                st.rerun()
+    else:
+        st.warning("¿Seguro que quieres eliminar **" + m["title"] + "**? Esto no se puede deshacer.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Sí, eliminar", use_container_width=True, key="opt_del_yes"):
+                manhwas[:] = [x for x in manhwas if x["id"] != m["id"]]
+                save(manhwas)
+                st.session_state.pop("opt_confirm_del", None)
+                st.rerun()
+        with c2:
+            if st.button("Cancelar", use_container_width=True, key="opt_del_no"):
+                st.session_state.pop("opt_confirm_del", None)
+                st.rerun()
+ 
+ 
+# ---- Abrir el diálogo correcto según lo que se haya pedido ----
+# Si desde la ventanita de opciones se pulsó "Editar":
+if "editing_now" in st.session_state:
+    _eid = st.session_state.pop("editing_now")
+    st.session_state.pop("opening_id", None)
+    _t = next((m for m in manhwas if m["id"] == _eid), None)
+    if _t:
+        edit_dialog(_t)
+# Si se pulsó el lapicito de una tarjeta (?open=ID):
+elif "opening_id" in st.session_state:
+    _oid = st.session_state.opening_id
+    _t = next((m for m in manhwas if m["id"] == _oid), None)
+    if _t:
+        options_dialog(_t)
+    else:
+        st.session_state.pop("opening_id", None)
+ 
+ 
  
 # ---- helpers para el HTML ----
 TRASH_SVG = ("<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' "
@@ -242,6 +299,7 @@ def card_html(m):
         "<div class='card' data-q='" + q_attr + "'>"
         "<div class='cover' style='" + cover_style + "'>"
         "<span class='badge'><img src='" + ICON[m["status"]] + "'> " + STATUSES[m["status"]] + "</span>"
+        "<button class='edit-fab' onclick='openManhwa(" + mid + ")' title='Editar o eliminar'>" + PENCIL_SVG + "</button>"
         + genre + "</div>"
         "<div class='body'>"
         "<div class='title-row'><div class='title'>" + esc(m["title"]) + "</div>" + drive + "</div>"
@@ -321,6 +379,10 @@ body{font-family:'Nunito',sans-serif;color:#5b3a4a;background:transparent;}
 .badge img{width:15px;height:15px;object-fit:contain;}
 .genre-tag{position:absolute;bottom:10px;right:10px;background:rgba(255,255,255,.87);color:#e85f96;
   padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800;}
+.edit-fab{position:absolute;top:10px;right:10px;width:32px;height:32px;border:none;cursor:pointer;
+  background:rgba(255,255,255,.9);color:#e85f96;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 2px 8px rgba(200,75,129,.25);transition:.15s;}
+.edit-fab:hover{background:#fff;color:#c94b81;transform:scale(1.12);}
 .body{padding:14px;display:flex;flex-direction:column;gap:8px;flex:1;}
 .title-row{display:flex;align-items:flex-start;gap:8px;}
 .title{font-size:16px;font-weight:700;font-family:'Baloo 2',sans-serif;color:#5b3a4a;line-height:1.2;flex:1;}
@@ -372,7 +434,11 @@ function goTab(k){ window.top.location.href='?tab='+k; }
  
 JS_TABS = JS  # (usa goTab en los botones de pestaña)
  
-JS_CARDS = "<script></script>"
+JS_CARDS = """
+<script>
+function openManhwa(id){ window.top.location.href = '?open=' + id; }
+</script>
+"""
  
 HEADER = ("<div class='header'><h1>✿ Mi Rincon Manhwa ✿</h1>"
           "<p>Tu biblioteca personal <span class='heart'>♡</span> hecha con amor</p></div>")
@@ -405,48 +471,4 @@ PAGE_CARDS = CSS + grid(visible) + JS_CARDS
 rows = max(1, (len(visible) + 2) // 3)
 height = 120 + rows * 430
 components.html(PAGE_CARDS, height=height, scrolling=True)
- 
-# 4) Gestor: elegir un manhwa y editarlo / cambiar estado / eliminarlo (nativo = siempre funciona)
-if manhwas:
-    st.markdown("---")
-    st.markdown("#### ✎ Editar o eliminar un manhwa")
-    id_to_manhwa = {m["id"]: m for m in manhwas}
-    options = [m["id"] for m in manhwas]
- 
-    def _fmt(mid):
-        mm = id_to_manhwa[mid]
-        return mm["title"] + "  ·  " + STATUSES.get(mm["status"], "")
- 
-    sel_id = st.selectbox("Elige un manhwa", options, format_func=_fmt, key="manage_sel")
-    sel_m = id_to_manhwa.get(sel_id)
- 
-    g1, g2, g3 = st.columns([1.2, 1.6, 1])
-    with g1:
-        if st.button("✏️ Editar", use_container_width=True, key="btn_edit"):
-            edit_dialog(sel_m)
-    with g2:
-        new_st = st.selectbox("Cambiar estado a", list(STATUSES.keys()),
-                              index=list(STATUSES.keys()).index(sel_m["status"]),
-                              format_func=lambda k: STATUSES[k], key="manage_status",
-                              label_visibility="collapsed")
-        if new_st != sel_m["status"]:
-            sel_m["status"] = new_st
-            save(manhwas)
-            st.rerun()
-    with g3:
-        if st.button("🗑 Eliminar", use_container_width=True, key="btn_del"):
-            st.session_state.confirm_del = sel_id
-    if st.session_state.get("confirm_del") == sel_id:
-        st.warning("¿Seguro que quieres eliminar **" + sel_m["title"] + "**?")
-        cc1, cc2 = st.columns(2)
-        with cc1:
-            if st.button("Sí, eliminar", use_container_width=True, key="confirm_yes"):
-                manhwas[:] = [m for m in manhwas if m["id"] != sel_id]
-                save(manhwas)
-                del st.session_state["confirm_del"]
-                st.rerun()
-        with cc2:
-            if st.button("Cancelar", use_container_width=True, key="confirm_no"):
-                del st.session_state["confirm_del"]
-                st.rerun()
  
