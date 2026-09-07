@@ -144,11 +144,10 @@ def add_dialog():
             save(manhwas)
             st.rerun()
  
-# Botón centrado para abrir el diálogo
-bcol1, bcol2, bcol3 = st.columns([1, 2, 1])
-with bcol2:
-    if st.button("＋ Agregar manhwa", use_container_width=True):
-        add_dialog()
+# Abrir el diálogo cuando el botón del HTML manda ?add=1
+if "add" in st.query_params:
+    st.query_params.clear()
+    add_dialog()
  
  
 # ---- helpers para el HTML ----
@@ -182,8 +181,9 @@ def card_html(m):
         opts += ("<div class='opt " + sel + "' onclick=\"setStatus(" + str(m["id"]) + ",'" + k + "')\">"
                  "<img src='" + ICON[k] + "'><span>" + lbl + "</span><span class='chk'>" + chk + "</span></div>")
     mid = str(m["id"])
+    q_attr = esc((str(m.get("title", "")) + " " + str(m.get("author", ""))).lower())
     return (
-        "<div class='card'>"
+        "<div class='card' data-q='" + q_attr + "'>"
         "<div class='cover' style='" + cover_style + "'>"
         "<span class='badge'><img src='" + ICON[m["status"]] + "'> " + STATUSES[m["status"]] + "</span>"
         + genre + "</div>"
@@ -237,11 +237,22 @@ CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Nunito',sans-serif;color:#5b3a4a;background:transparent;}
-.header{text-align:center;padding:26px 20px 18px;background:linear-gradient(135deg,#ffd9e8,#ffc4dd);
-  border-radius:24px;border:2px solid #ffb9d6;margin-bottom:18px;}
+.header{text-align:center;padding:30px 20px 18px;background:linear-gradient(135deg,#ffd9e8,#ffc4dd);
+  border-radius:24px;border:2px solid #ffb9d6;margin-bottom:18px;position:relative;overflow:hidden;}
+.header::before{content:'❀ ❀ ❀ ❀ ❀ ❀ ❀ ❀ ❀ ❀ ❀ ❀';position:absolute;top:7px;left:0;right:0;
+  color:rgba(255,255,255,.55);font-size:13px;letter-spacing:14px;white-space:nowrap;overflow:hidden;}
 .header h1{font-family:'Baloo 2',sans-serif;font-size:34px;color:#c94b81;text-shadow:0 2px 0 #fff;}
 .header p{color:#c06390;font-weight:700;font-size:14px;margin-top:2px;}
 .heart{color:#e85f96;}
+/* Toolbar: buscar + agregar */
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+.add-btn{background:linear-gradient(135deg,#ff6fa5,#e85f96);color:#fff;border:none;padding:12px 22px;
+  border-radius:30px;font-size:14px;font-weight:800;font-family:'Baloo 2',sans-serif;cursor:pointer;
+  box-shadow:0 6px 18px rgba(255,111,165,.28);transition:.2s;text-decoration:none;display:inline-block;}
+.add-btn:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(255,111,165,.38);}
+.search{flex:1;min-width:180px;max-width:340px;border:1.5px solid #ffd6e6;border-radius:30px;
+  padding:11px 18px;font-size:14px;background:#fff;color:#5b3a4a;outline:none;font-family:'Nunito',sans-serif;}
+.search::placeholder{color:#d6a7bc;}
 .tabs{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:22px;}
 .tab{border:none;cursor:pointer;background:#fff;color:#9c7688;padding:9px 18px;border-radius:30px;
   font-size:14px;font-weight:700;font-family:'Baloo 2',sans-serif;box-shadow:0 6px 16px rgba(255,111,165,.15);
@@ -322,6 +333,14 @@ function togglePk(e,id){
   if(!was) pk.classList.add('open');
 }
 function setStatus(id,to){ window.top.location.href='?setid='+id+'&to='+to; }
+function openAdd(){ window.top.location.href='?add=1'; }
+function doSearch(){
+  var q=(document.getElementById('search').value||'').toLowerCase();
+  document.querySelectorAll('.card').forEach(function(c){
+    var t=(c.dataset.q||'');
+    c.style.display = t.indexOf(q)>-1 ? '' : 'none';
+  });
+}
 document.addEventListener('click',function(){
   document.querySelectorAll('.picker').forEach(function(p){p.classList.remove('open');});
 });
@@ -332,7 +351,12 @@ setTab('todos');
 HEADER = ("<div class='header'><h1>✿ Mi Rincon Manhwa ✿</h1>"
           "<p>Tu biblioteca personal <span class='heart'>♡</span> hecha con amor</p></div>")
  
-PAGE = CSS + HEADER + "<div class='tabs'>" + tabs_html + "</div>" + sections_html + JS
+TOOLBAR = ("<div class='toolbar'>"
+           "<a class='add-btn' onclick='openAdd()'>＋ Agregar manhwa</a>"
+           "<input class='search' id='search' placeholder='🔍 Buscar por nombre o autor...' oninput='doSearch()'>"
+           "</div>")
+ 
+PAGE = CSS + HEADER + TOOLBAR + "<div class='tabs'>" + tabs_html + "</div>" + sections_html + JS
  
 rows = max(1, (len(manhwas) + 2) // 3)
 height = 300 + rows * 440
