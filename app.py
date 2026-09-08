@@ -275,9 +275,10 @@ body{font-family:'Nunito',sans-serif;color:#5b3a4a;background:transparent;}
 .card{background:#fff;border-radius:22px;box-shadow:0 8px 24px rgba(255,111,165,.15);
   border:1.5px solid #ffd6e6;overflow:visible;display:flex;flex-direction:column;transition:.2s;}
 .card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(255,111,165,.28);}
-.cover{height:175px;background:linear-gradient(135deg,#ffd9e8,#ffc4dd);background-size:cover;
-  background-position:center;position:relative;border-radius:22px 22px 0 0;}
-.badge{position:absolute;top:10px;left:10px;background:rgba(255,255,255,.87);color:#e85f96;
+.cover{height:175px;background:linear-gradient(135deg,#ffd9e8,#ffc4dd);
+  position:relative;border-radius:22px 22px 0 0;overflow:hidden;}
+.cover-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
+.badge{position:absolute;top:10px;left:10px;z-index:2;background:rgba(255,255,255,.92);color:#e85f96;
   padding:4px 11px 4px 8px;border-radius:20px;font-size:11px;font-weight:800;display:flex;
   align-items:center;gap:5px;box-shadow:0 2px 8px rgba(200,75,129,.2);}
 .badge img{width:15px;height:15px;object-fit:contain;}
@@ -332,15 +333,21 @@ body{font-family:'Nunito',sans-serif;color:#5b3a4a;background:transparent;}
  
 # CSS para las tarjetas cuando se renderizan de forma NATIVA (sin iframe)
 CARD_CSS = (CSS.replace("<style>", "").replace("</style>", "") +
-            # la tarjeta nativa va pegada al popover de abajo
-            ".ncard{margin-bottom:0;border-bottom-left-radius:0;border-bottom-right-radius:0;}"
-            # el boton popover de opciones, estilo rosita, pegado a la tarjeta
-            "div[data-testid='stPopover']>button{background:#fff!important;color:#e85f96!important;"
-            "border:1.5px solid #ffd6e6!important;border-top:none!important;"
-            "border-radius:0 0 22px 22px!important;font-family:'Baloo 2',sans-serif!important;"
-            "font-weight:800!important;box-shadow:0 8px 24px rgba(255,111,165,.15)!important;"
-            "margin-top:-6px!important;margin-bottom:18px!important;padding:8px!important;}"
-            "div[data-testid='stPopover']>button:hover{background:#ffe9f2!important;color:#c94b81!important;}")
+            ".ncard{margin-bottom:14px;}"
+            # el boton de opciones: iconito redondo en la esquina superior derecha de la tarjeta (como la carpeta)
+            "div[data-testid='stColumn']{position:relative;}"
+            "div[data-testid='stPopover']{position:absolute!important;top:12px;right:14px;z-index:10;"
+            "margin:0!important;width:auto!important;}"
+            "div[data-testid='stPopover'] button[data-testid='stPopoverButton']{width:32px!important;min-width:32px!important;"
+            "height:32px!important;padding:0!important;background:rgba(255,255,255,.92)!important;color:#e85f96!important;"
+            "border:1.5px solid #ffd6e6!important;border-radius:50%!important;"
+            "box-shadow:0 2px 8px rgba(200,75,129,.25)!important;display:flex;align-items:center;justify-content:center;}"
+            "div[data-testid='stPopover'] button[data-testid='stPopoverButton']:hover{background:#fff!important;"
+            "color:#c94b81!important;transform:scale(1.1);}"
+            # ocultar el chevron 'expand_more' (icono material que Streamlit agrega)
+            "div[data-testid='stPopover'] [data-testid='stIconMaterial']{display:none!important;}"
+            "div[data-testid='stPopover'] button[data-testid='stPopoverButton'] div[aria-hidden='true']{display:none!important;}"
+            "div[data-testid='stPopover'] button[data-testid='stPopoverButton'] p{margin:0!important;font-size:15px!important;}")
  
  
 HEADER = ("<div class='header'><h1>✿ Mi Rincon Manhwa ✿</h1>"
@@ -405,11 +412,12 @@ if active != "todos":
 def card_inner_html(m):
     """El contenido visual de la tarjeta (sin el botón de opciones, que es nativo)."""
     cov = cover_uri(m)
-    cover_style = ("background-image:url('" + cov + "')") if cov else ""
-    genre = ("<span class='genre-tag'>" + esc(m.get("genre")) + "</span>") if m.get("genre") else ""
+    cover_img = ("<img class='cover-img' src='" + cov + "'>") if cov else ""
     drive = ("<a class='drive-ico' href='" + esc(m.get("drive")) + "' target='_blank' title='Abrir en Drive'>📁</a>") if m.get("drive") else ""
     author = ("<div class='card-author'>✍️ " + esc(m.get("author")) + "</div>") if m.get("author") and m.get("author") != "—" else ""
     chips = ""
+    if m.get("genre"):
+        chips += "<span class='chip'>🏷 " + esc(m.get("genre")) + "</span>"
     if m.get("platform"):
         chips += "<span class='chip'>▶ " + esc(m.get("platform")) + "</span>"
     if m.get("chapter"):
@@ -417,12 +425,12 @@ def card_inner_html(m):
     comment = ("<div class='comment'>💬 " + esc(m.get("comment")) + "</div>") if m.get("comment") else ""
     return (
         "<div class='card ncard'>"
-        "<div class='cover' style='" + cover_style + "'>"
+        "<div class='cover'>" + cover_img +
         "<span class='badge'><img src='" + ICON[m["status"]] + "'> " + STATUSES[m["status"]] + "</span>"
-        + genre + "</div>"
+        "</div>"
         "<div class='body'>"
         "<div class='title-row'><div class='title'>" + esc(m["title"]) + "</div>" + drive + "</div>"
-        + author + "<div>" + chips + "</div>"
+        + author + "<div class='chips'>" + chips + "</div>"
         "<div class='stars'>" + stars(m.get("rating", 0)) + "</div>"
         + comment +
         "</div></div>"
@@ -440,8 +448,7 @@ else:
         cols = st.columns(3)
         for col, m in zip(cols, visible[row_start:row_start + 3]):
             with col:
-                st.markdown(card_inner_html(m), unsafe_allow_html=True)
-                with st.popover("✏️ Opciones", use_container_width=True):
+                with st.popover("✏️", use_container_width=False):
                     st.markdown("**" + m["title"] + "**")
                     pc1, pc2 = st.columns(2)
                     with pc1:
@@ -458,4 +465,5 @@ else:
                             save(manhwas)
                             st.session_state.pop("confirm_del_" + str(m["id"]), None)
                             st.rerun()
+                st.markdown(card_inner_html(m), unsafe_allow_html=True)
  
