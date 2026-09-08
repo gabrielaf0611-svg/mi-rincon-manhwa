@@ -9,9 +9,40 @@ import json, os, base64, html
 from datetime import datetime
 from icons import ICON
  
-st.set_page_config(page_title="Mi Rincon Manhwa", page_icon="🌸", layout="wide")
- 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_APPICON = os.path.join(BASE_DIR, "assets", "appicon.png")
+ 
+st.set_page_config(
+    page_title="Mi Rincon Manhwa",
+    page_icon=_APPICON if os.path.exists(_APPICON) else "🌸",
+    layout="wide",
+)
+ 
+# ---- Icono para "Agregar a pantalla de inicio" en el telefono (iOS/Android) ----
+def _inject_app_icon():
+    p180 = os.path.join(BASE_DIR, "assets", "appicon180.png")
+    p = p180 if os.path.exists(p180) else _APPICON
+    if not os.path.exists(p):
+        return
+    uri = "data:image/png;base64," + base64.b64encode(open(p, "rb").read()).decode()
+    components.html(
+        "<script>"
+        "var h=window.parent.document.head;"
+        "function add(rel,attrs){var l=window.parent.document.createElement('link');l.rel=rel;"
+        "for(var k in attrs)l.setAttribute(k,attrs[k]);h.appendChild(l);}"
+        "['apple-touch-icon','apple-touch-icon-precomposed','icon','shortcut icon'].forEach(function(r){"
+        "add(r,{href:'" + uri + "'});});"
+        "var m=window.parent.document.createElement('meta');"
+        "m.name='apple-mobile-web-app-title';m.content='Mi Rincon Manhwa';h.appendChild(m);"
+        "var m2=window.parent.document.createElement('meta');"
+        "m2.name='apple-mobile-web-app-capable';m2.content='yes';h.appendChild(m2);"
+        "</script>",
+        height=0,
+    )
+ 
+_inject_app_icon()
+ 
+ 
 DATA_FILE = os.path.join(BASE_DIR, "data", "manhwas.json")
 COVERS_DIR = os.path.join(BASE_DIR, "data", "covers")
 os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
