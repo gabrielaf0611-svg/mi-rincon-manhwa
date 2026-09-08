@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 """
 Mi Rincon Manhwa - app personal para llevar el control de tus manhwas.
@@ -142,7 +141,9 @@ def manhwa_dialog(editing=None):
     """editing = dict del manhwa a editar, o None para uno nuevo."""
     is_edit = editing is not None
     d = editing or {}
-    rk = "rating_edit_" + str(d.get("id", "new"))
+    # key ÚNICA por apertura del diálogo (evita que el widget de estrellas se trabe)
+    _dn = st.session_state.get("dlg_nonce", 0)
+    rk = "rating_" + str(d.get("id", "new")) + "_" + str(_dn)
     # inicializar el rating del widget con el valor actual (solo la primera vez que abre)
     if rk not in st.session_state:
         r0 = int(d.get("rating", 0))
@@ -193,8 +194,6 @@ def manhwa_dialog(editing=None):
         else:
             manhwas.append(record)
         save(manhwas)
-        if rk in st.session_state:
-            del st.session_state[rk]
         st.rerun()
  
  
@@ -420,6 +419,7 @@ active = st.session_state.get("active_tab", "todos")
 c_add, c_search = st.columns([1, 2], vertical_alignment="center")
 with c_add:
     if st.button("＋ Agregar manhwa", use_container_width=True, key="addbtn"):
+        st.session_state["dlg_nonce"] = st.session_state.get("dlg_nonce", 0) + 1  # rating fresco
         add_dialog()
 with c_search:
     query = st.text_input("buscar", value="", placeholder="🔍 Buscar por nombre o autor...",
@@ -501,6 +501,7 @@ else:
                             if st.button("✏️ Editar", key="ed_" + mid, use_container_width=True):
                                 st.session_state["open_edit_id"] = m["id"]
                                 st.session_state["optpop_nonce"] = _pn + 1  # cierra el popover
+                                st.session_state["dlg_nonce"] = st.session_state.get("dlg_nonce", 0) + 1  # rating fresco
                                 st.rerun()
                         with pc2:
                             if st.button("🗑 Eliminar", key="dl_" + mid, use_container_width=True):
