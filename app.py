@@ -71,6 +71,7 @@ if "ss" in _qp and "to" in _qp:
                 _m["status"] = _to
         save(manhwas)
     st.session_state.pop("open_status", None)
+    st.session_state.seen_splash = True  # no repetir el opening en esta recarga
     st.query_params.clear()
     st.rerun()
 if "sm" in _qp:
@@ -82,6 +83,7 @@ if "sm" in _qp:
         st.session_state.pop("open_status", None)
     else:
         st.session_state.open_status = _sid
+    st.session_state.seen_splash = True  # no repetir el opening en esta recarga
     st.query_params.clear()
     st.rerun()
  
