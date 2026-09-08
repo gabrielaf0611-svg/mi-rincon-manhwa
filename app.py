@@ -228,10 +228,8 @@ def esc(s):
  
  
 def stars(n):
-    out = ""
-    for i in range(1, 6):
-        out += "★" if i <= n else "<span class='empty'>★</span>"
-    return out
+    # solo las estrellas seleccionadas (sin las vacías)
+    return "★" * int(n)
  
  
 def count(s):
