@@ -60,26 +60,33 @@ manhwas = load()
  
 # ---- CSS para la parte de Streamlit ----
 st.markdown(
+    '<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">'
     "<style>"
-    "@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700&display=swap');"
+    "@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap');"
     ".stApp{background:linear-gradient(160deg,#fff6fa,#ffeaf3);}"
-    "html,body,[class*='css'],p,span,div,label{font-family:'Nunito','Segoe UI',sans-serif;color:#5b3a4a;}"
-    # Base para TODOS los botones: forma redondeada + fuente, SIN forzar color de fondo
+    # Nunito para TODO el texto de la app (con !important para ganar a Streamlit)
+    ".stApp,.stApp p,.stApp span,.stApp div,.stApp label,.stApp li,.stApp a,"
+    ".stApp input,.stApp textarea,.stApp [data-testid='stMarkdownContainer']{"
+    "font-family:'Nunito','Segoe UI',sans-serif!important;}"
+    # Baloo 2 para titulos y botones
+    ".stApp h1,.stApp h2,.stApp h3,.stButton button,.stButton button *,"
+    ".stFormSubmitButton button,.stFormSubmitButton button *,[data-testid='stPopover'] button{"
+    "font-family:'Baloo 2','Nunito',sans-serif!important;}"
+    # Base para TODOS los botones: forma redondeada
     ".stButton>button,.stFormSubmitButton>button{border-radius:26px!important;font-weight:800!important;"
-    "font-family:'Baloo 2',sans-serif!important;padding:10px 18px!important;}"
-    # Botones ROSA sólido: guardar (form), agregar, y la pestaña activa
-    ".stFormSubmitButton>button,.st-key-addbtn button,.st-key-tabact button{"
+    "padding:10px 18px!important;}"
+    # Botones ROSA sólido: guardar (form) y agregar
+    ".stFormSubmitButton>button,.st-key-addbtn button{"
     "background:linear-gradient(135deg,#ff6fa5,#e85f96)!important;color:#fff!important;border:none!important;"
     "box-shadow:0 6px 18px rgba(255,111,165,.28)!important;}"
-    ".stFormSubmitButton>button *,.st-key-addbtn button *,.st-key-tabact button *{color:#fff!important;}"
-    ".stFormSubmitButton>button:hover,.st-key-addbtn button:hover,.st-key-tabact button:hover{"
-    "color:#fff!important;transform:translateY(-2px);}"
-    # Pestañas INACTIVAS: blancas con texto rosita-gris
-    "[class*='st-key-tabbtn_'] button{background:#fff!important;color:#9c7688!important;"
+    ".stFormSubmitButton>button *,.st-key-addbtn button *{color:#fff!important;}"
+    ".stFormSubmitButton>button:hover,.st-key-addbtn button:hover{color:#fff!important;transform:translateY(-2px);}"
+    # Pestañas: base blanca con texto rosita (la activa se pinta rosa aparte)
+    "[class*='st-key-tab_'] button{background:#fff!important;color:#9c7688!important;"
     "border:1.5px solid #ffd6e6!important;box-shadow:0 4px 12px rgba(255,111,165,.12)!important;}"
-    "[class*='st-key-tabbtn_'] button *{color:#9c7688!important;}"
-    "[class*='st-key-tabbtn_'] button:hover{background:#ffe9f2!important;border-color:#ffb9d6!important;}"
-    "[class*='st-key-tabbtn_'] button:hover *{color:#c94b81!important;}"
+    "[class*='st-key-tab_'] button *{color:#9c7688!important;}"
+    "[class*='st-key-tab_'] button:hover{background:#ffe9f2!important;border-color:#ffb9d6!important;}"
+    "[class*='st-key-tab_'] button:hover *{color:#c94b81!important;}"
     ".stTextInput input,.stNumberInput input,.stTextArea textarea{border-radius:26px!important;border-color:#ffd6e6!important;"
     "font-family:'Nunito',sans-serif!important;color:#5b3a4a!important;padding:11px 18px!important;background:#fff!important;}"
     ".stTextInput input::placeholder{color:#d6a7bc!important;}"
@@ -93,8 +100,6 @@ st.markdown(
     "iframe{margin-bottom:0!important;}"
     "div[data-testid='stVerticalBlock']{gap:.5rem;}"
     ".stButton{display:flex;align-items:center;height:100%;}"
-    # pestañas: iconito centrado arriba de cada botón
-    ".tabicon{text-align:center;height:30px;margin-bottom:2px;display:flex;align-items:center;justify-content:center;}"
     "</style>",
     unsafe_allow_html=True,
 )
@@ -353,14 +358,26 @@ tab_defs = [
     ("pausa", ICON["pausa"], "En pausa", count("pausa")),
     ("cancelada", ICON["cancelada"], "Canceladas", count("cancelada")),
 ]
+# CSS dinámico: mete TU icono dentro de cada botón (a la izquierda del texto, como la lupa)
+# y pinta de rosa la pestaña activa.
+_tab_css = "<style>"
+for k, icon_uri, lbl, cnt in tab_defs:
+    if icon_uri:
+        _tab_css += (".st-key-tab_" + k + " button p::before{content:'';display:inline-block;"
+                     "width:18px;height:18px;background:url('" + icon_uri + "') center/contain no-repeat;"
+                     "margin-right:7px;vertical-align:-4px;}")
+    else:
+        _tab_css += ".st-key-tab_todos button p::before{content:'✿ ';}"
+_tab_css += (".st-key-tab_" + active + " button{background:linear-gradient(135deg,#ff6fa5,#e85f96)!important;"
+             "color:#fff!important;border:none!important;box-shadow:0 6px 18px rgba(255,111,165,.28)!important;}"
+             ".st-key-tab_" + active + " button *{color:#fff!important;}")
+_tab_css += "</style>"
+st.markdown(_tab_css, unsafe_allow_html=True)
+ 
 tab_cols = st.columns(5)
 for tcol, (k, icon_uri, lbl, cnt) in zip(tab_cols, tab_defs):
     with tcol:
-        icon_html = ("<img src='" + icon_uri + "' style='width:26px;height:26px;object-fit:contain'>") \
-            if icon_uri else "<span style='font-size:22px'>✿</span>"
-        st.markdown("<div class='tabicon'>" + icon_html + "</div>", unsafe_allow_html=True)
-        bkey = "tabact" if k == active else ("tabbtn_" + k)
-        if st.button(lbl + " (" + str(cnt) + ")", key=bkey, use_container_width=True):
+        if st.button(lbl + " (" + str(cnt) + ")", key="tab_" + k, use_container_width=True):
             st.session_state.active_tab = k
             st.rerun()
 active = st.session_state.get("active_tab", "todos")
