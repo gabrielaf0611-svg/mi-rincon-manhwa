@@ -64,12 +64,22 @@ st.markdown(
     "@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700&display=swap');"
     ".stApp{background:linear-gradient(160deg,#fff6fa,#ffeaf3);}"
     "html,body,[class*='css'],p,span,div,label{font-family:'Nunito','Segoe UI',sans-serif;color:#5b3a4a;}"
-    ".stButton>button,.stFormSubmitButton>button{background:linear-gradient(135deg,#ff6fa5,#e85f96)!important;"
-    "color:#fff!important;border:none!important;border-radius:26px!important;font-weight:800!important;"
-    "font-family:'Baloo 2',sans-serif!important;padding:12px 26px!important;"
+    # Base para TODOS los botones: forma redondeada + fuente, SIN forzar color de fondo
+    ".stButton>button,.stFormSubmitButton>button{border-radius:26px!important;font-weight:800!important;"
+    "font-family:'Baloo 2',sans-serif!important;padding:10px 18px!important;}"
+    # Botones ROSA sólido: guardar (form), agregar, y la pestaña activa
+    ".stFormSubmitButton>button,.st-key-addbtn button,.st-key-tabact button{"
+    "background:linear-gradient(135deg,#ff6fa5,#e85f96)!important;color:#fff!important;border:none!important;"
     "box-shadow:0 6px 18px rgba(255,111,165,.28)!important;}"
-    ".stButton>button *,.stFormSubmitButton>button *{font-family:'Baloo 2',sans-serif!important;font-weight:800!important;color:#fff!important;}"
-    ".stButton>button:hover,.stFormSubmitButton>button:hover{color:#fff!important;transform:translateY(-2px);}"
+    ".stFormSubmitButton>button *,.st-key-addbtn button *,.st-key-tabact button *{color:#fff!important;}"
+    ".stFormSubmitButton>button:hover,.st-key-addbtn button:hover,.st-key-tabact button:hover{"
+    "color:#fff!important;transform:translateY(-2px);}"
+    # Pestañas INACTIVAS: blancas con texto rosita-gris
+    "[class*='st-key-tabbtn_'] button{background:#fff!important;color:#9c7688!important;"
+    "border:1.5px solid #ffd6e6!important;box-shadow:0 4px 12px rgba(255,111,165,.12)!important;}"
+    "[class*='st-key-tabbtn_'] button *{color:#9c7688!important;}"
+    "[class*='st-key-tabbtn_'] button:hover{background:#ffe9f2!important;border-color:#ffb9d6!important;}"
+    "[class*='st-key-tabbtn_'] button:hover *{color:#c94b81!important;}"
     ".stTextInput input,.stNumberInput input,.stTextArea textarea{border-radius:26px!important;border-color:#ffd6e6!important;"
     "font-family:'Nunito',sans-serif!important;color:#5b3a4a!important;padding:11px 18px!important;background:#fff!important;}"
     ".stTextInput input::placeholder{color:#d6a7bc!important;}"
@@ -85,12 +95,6 @@ st.markdown(
     ".stButton{display:flex;align-items:center;height:100%;}"
     # pestañas: iconito centrado arriba de cada botón
     ".tabicon{text-align:center;height:30px;margin-bottom:2px;display:flex;align-items:center;justify-content:center;}"
-    # botones de pestaña (secondary = inactivo blanco, primary = activo rosa)
-    ".stButton>button[kind='secondary']{background:#fff!important;color:#9c7688!important;"
-    "border:1.5px solid #ffd6e6!important;box-shadow:0 4px 12px rgba(255,111,165,.12)!important;"
-    "border-radius:26px!important;font-family:'Baloo 2',sans-serif!important;font-weight:700!important;padding:8px 10px!important;}"
-    ".stButton>button[kind='secondary']:hover{background:#ffe9f2!important;color:#c94b81!important;border-color:#ffb9d6!important;}"
-    ".stButton>button[kind='primary']{border-radius:26px!important;padding:8px 10px!important;}"
     "</style>",
     unsafe_allow_html=True,
 )
@@ -354,11 +358,9 @@ for tcol, (k, icon_uri, lbl, cnt) in zip(tab_cols, tab_defs):
     with tcol:
         icon_html = ("<img src='" + icon_uri + "' style='width:26px;height:26px;object-fit:contain'>") \
             if icon_uri else "<span style='font-size:22px'>✿</span>"
-        st.markdown("<div class='tabicon " + ("act" if k == active else "") + "'>" + icon_html + "</div>",
-                    unsafe_allow_html=True)
-        btype = "primary" if k == active else "secondary"
-        if st.button(lbl + " (" + str(cnt) + ")", key="tabbtn_" + k,
-                     use_container_width=True, type=btype):
+        st.markdown("<div class='tabicon'>" + icon_html + "</div>", unsafe_allow_html=True)
+        bkey = "tabact" if k == active else ("tabbtn_" + k)
+        if st.button(lbl + " (" + str(cnt) + ")", key=bkey, use_container_width=True):
             st.session_state.active_tab = k
             st.rerun()
 active = st.session_state.get("active_tab", "todos")
@@ -366,7 +368,7 @@ active = st.session_state.get("active_tab", "todos")
 # 2) Fila nativa: botón agregar + buscador
 c_add, c_search = st.columns([1, 2], vertical_alignment="center")
 with c_add:
-    if st.button("＋ Agregar manhwa", use_container_width=True):
+    if st.button("＋ Agregar manhwa", use_container_width=True, key="addbtn"):
         add_dialog()
 with c_search:
     query = st.text_input("buscar", value="", placeholder="🔍 Buscar por nombre o autor...",
