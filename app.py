@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 """
 Mi Rincon Manhwa - app personal para llevar el control de tus manhwas.
@@ -490,13 +491,16 @@ else:
                                 save(manhwas)
                                 st.rerun()
                 # ---- Popover de OPCIONES (arriba derecha) ----
-                with st.container(key="optpop_" + mid):
+                # el nonce cambia la key al abrir "Editar" -> fuerza que el popover se cierre
+                _pn = st.session_state.get("optpop_nonce", 0)
+                with st.container(key="optpop_" + mid + "_" + str(_pn)):
                     with st.popover("✏️", use_container_width=False):
                         st.markdown("**" + m["title"] + "**")
                         pc1, pc2 = st.columns(2)
                         with pc1:
                             if st.button("✏️ Editar", key="ed_" + mid, use_container_width=True):
                                 st.session_state["open_edit_id"] = m["id"]
+                                st.session_state["optpop_nonce"] = _pn + 1  # cierra el popover
                                 st.rerun()
                         with pc2:
                             if st.button("🗑 Eliminar", key="dl_" + mid, use_container_width=True):
