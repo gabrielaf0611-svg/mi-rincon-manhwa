@@ -57,6 +57,34 @@ def cover_uri(m):
  
 manhwas = load()
  
+# ---- Acciones por query params: abrir/cerrar la burbuja de estado y cambiar estado ----
+_qp = st.query_params
+if "ss" in _qp and "to" in _qp:
+    try:
+        _sid = int(_qp["ss"])
+    except Exception:
+        _sid = None
+    _to = _qp["to"]
+    if _sid is not None and _to in STATUSES:
+        for _m in manhwas:
+            if _m["id"] == _sid:
+                _m["status"] = _to
+        save(manhwas)
+    st.session_state.pop("open_status", None)
+    st.query_params.clear()
+    st.rerun()
+if "sm" in _qp:
+    try:
+        _sid = int(_qp["sm"])
+    except Exception:
+        _sid = None
+    if st.session_state.get("open_status") == _sid:
+        st.session_state.pop("open_status", None)
+    else:
+        st.session_state.open_status = _sid
+    st.query_params.clear()
+    st.rerun()
+ 
  
 # ---- CSS para la parte de Streamlit ----
 st.markdown(
@@ -273,15 +301,30 @@ body{font-family:'Nunito',sans-serif;color:#5b3a4a;background:transparent;}
 .section.show{display:block;}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:20px;}
 .card{background:#fff;border-radius:22px;box-shadow:0 8px 24px rgba(255,111,165,.15);
-  border:1.5px solid #ffd6e6;overflow:visible;display:flex;flex-direction:column;transition:.2s;}
+  border:1.5px solid #ffd6e6;overflow:visible;display:flex;flex-direction:column;transition:.2s;position:relative;}
 .card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(255,111,165,.28);}
 .cover{height:175px;background:linear-gradient(135deg,#ffd9e8,#ffc4dd);
   position:relative;border-radius:22px 22px 0 0;overflow:hidden;}
 .cover-img{position:absolute!important;inset:0;width:100%!important;height:100%!important;
   object-fit:cover!important;display:block!important;max-width:none!important;border-radius:0!important;}
-.badge{position:absolute;top:10px;left:10px;z-index:2;background:rgba(255,255,255,.92);color:#e85f96;
-  padding:4px 11px 4px 8px;border-radius:20px;font-size:11px;font-weight:800;display:flex;
-  align-items:center;gap:5px;box-shadow:0 2px 8px rgba(200,75,129,.2);}
+.badge{position:absolute;top:10px;left:10px;z-index:3;background:rgba(255,255,255,.92);color:#e85f96!important;
+  padding:4px 11px 4px 8px;border-radius:20px;font-size:11px;font-weight:800;display:inline-flex;
+  align-items:center;gap:5px;box-shadow:0 2px 8px rgba(200,75,129,.2);text-decoration:none!important;cursor:pointer;transition:.15s;}
+.badge:hover{background:#fff;box-shadow:0 4px 12px rgba(200,75,129,.3);}
+.badge .bcaret{opacity:.7;font-size:10px;}
+.statusmenu{position:absolute;top:44px;left:10px;z-index:20;background:#fff;border-radius:16px;padding:6px;
+  box-shadow:0 12px 30px rgba(200,75,129,.3);border:2px solid #ffd9e8;min-width:160px;
+  animation:smpop .18s cubic-bezier(.34,1.56,.64,1);}
+@keyframes smpop{from{opacity:0;transform:translateY(-8px) scale(.96);}to{opacity:1;transform:translateY(0) scale(1);}}
+.statusmenu::before{content:'';position:absolute;top:-9px;left:22px;width:15px;height:15px;background:#fff;
+  border-left:2px solid #ffd9e8;border-top:2px solid #ffd9e8;transform:rotate(45deg);border-radius:4px 0 0 0;}
+.smopt{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:11px;cursor:pointer;
+  font-size:13px;font-weight:700;color:#5b3a4a!important;text-decoration:none!important;transition:.12s;}
+.smopt:hover{background:#ffe9f2;}
+.smopt.sel{background:linear-gradient(135deg,#ff6fa5,#e85f96);}
+.smopt.sel,.smopt.sel span{color:#fff!important;}
+.smopt img{width:19px;height:19px;object-fit:contain;}
+.smopt .smchk{margin-left:auto;font-size:12px;}
 .badge img{width:15px;height:15px;object-fit:contain;}
 .genre-tag{position:absolute;bottom:10px;right:10px;background:rgba(255,255,255,.87);color:#e85f96;
   padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800;}
@@ -426,11 +469,24 @@ def card_inner_html(m):
     comment = ("<div class='comment'>💬 " + esc(m.get("comment")) + "</div>") if m.get("comment") else ""
     # las estrellas solo salen si hay rating
     stars_html = ("<div class='stars'>" + stars(m.get("rating", 0)) + "</div>") if m.get("rating", 0) else ""
+    mid = str(m["id"])
+    # badge de estado clickeable (abre la burbuja de estados)
+    badge = ("<a class='badge' href='?sm=" + mid + "' target='_self' title='Cambiar estado'>"
+             "<img src='" + ICON[m["status"]] + "'> " + STATUSES[m["status"]] + " <span class='bcaret'>▾</span></a>")
+    # burbuja de estados (solo si esta abierta para este manhwa)
+    status_bubble = ""
+    if st.session_state.get("open_status") == m["id"]:
+        opts = ""
+        for k, lbl in STATUSES.items():
+            sel = " sel" if m["status"] == k else ""
+            chk = " ✓" if m["status"] == k else ""
+            opts += ("<a class='smopt" + sel + "' href='?ss=" + mid + "&to=" + k + "' target='_self'>"
+                     "<img src='" + ICON[k] + "'><span>" + lbl + "</span><span class='smchk'>" + chk + "</span></a>")
+        status_bubble = "<div class='statusmenu'>" + opts + "</div>"
     return (
         "<div class='card ncard'>"
-        "<div class='cover'>" + cover_img +
-        "<span class='badge'><img src='" + ICON[m["status"]] + "'> " + STATUSES[m["status"]] + "</span>"
-        "</div>"
+        "<div class='cover'>" + cover_img + "</div>"
+        + badge + status_bubble +
         "<div class='body'>"
         "<div class='title-row'><div class='title'>" + esc(m["title"]) + "</div>" + drive + "</div>"
         + author + "<div class='chips'>" + chips + "</div>"
