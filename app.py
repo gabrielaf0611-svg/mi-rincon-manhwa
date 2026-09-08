@@ -277,7 +277,8 @@ body{font-family:'Nunito',sans-serif;color:#5b3a4a;background:transparent;}
 .card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(255,111,165,.28);}
 .cover{height:175px;background:linear-gradient(135deg,#ffd9e8,#ffc4dd);
   position:relative;border-radius:22px 22px 0 0;overflow:hidden;}
-.cover-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
+.cover-img{position:absolute!important;inset:0;width:100%!important;height:100%!important;
+  object-fit:cover!important;display:block!important;max-width:none!important;border-radius:0!important;}
 .badge{position:absolute;top:10px;left:10px;z-index:2;background:rgba(255,255,255,.92);color:#e85f96;
   padding:4px 11px 4px 8px;border-radius:20px;font-size:11px;font-weight:800;display:flex;
   align-items:center;gap:5px;box-shadow:0 2px 8px rgba(200,75,129,.2);}
@@ -417,12 +418,14 @@ def card_inner_html(m):
     author = ("<div class='card-author'>✍️ " + esc(m.get("author")) + "</div>") if m.get("author") and m.get("author") != "—" else ""
     chips = ""
     if m.get("genre"):
-        chips += "<span class='chip'>🏷 " + esc(m.get("genre")) + "</span>"
+        chips += "<span class='chip'>" + esc(m.get("genre")) + "</span>"
     if m.get("platform"):
-        chips += "<span class='chip'>▶ " + esc(m.get("platform")) + "</span>"
+        chips += "<span class='chip'>📱 " + esc(m.get("platform")) + "</span>"
     if m.get("chapter"):
         chips += "<span class='chip'>Cap. " + esc(m.get("chapter")) + "</span>"
     comment = ("<div class='comment'>💬 " + esc(m.get("comment")) + "</div>") if m.get("comment") else ""
+    # las estrellas solo salen si hay rating
+    stars_html = ("<div class='stars'>" + stars(m.get("rating", 0)) + "</div>") if m.get("rating", 0) else ""
     return (
         "<div class='card ncard'>"
         "<div class='cover'>" + cover_img +
@@ -431,7 +434,7 @@ def card_inner_html(m):
         "<div class='body'>"
         "<div class='title-row'><div class='title'>" + esc(m["title"]) + "</div>" + drive + "</div>"
         + author + "<div class='chips'>" + chips + "</div>"
-        "<div class='stars'>" + stars(m.get("rating", 0)) + "</div>"
+        + stars_html
         + comment +
         "</div></div>"
     )
