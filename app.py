@@ -83,11 +83,14 @@ st.markdown(
     "iframe{margin-bottom:0!important;}"
     "div[data-testid='stVerticalBlock']{gap:.5rem;}"
     ".stButton{display:flex;align-items:center;height:100%;}"
-    # pills (pestañas) rositas
-    "div[data-testid='stPills'] button{border-radius:30px!important;border:1.5px solid #ffd6e6!important;"
-    "font-family:'Baloo 2',sans-serif!important;font-weight:700!important;color:#9c7688!important;background:#fff!important;}"
-    "div[data-testid='stPills'] button[aria-selected='true'],div[data-testid='stPills'] button[data-selected='true']{"
-    "background:linear-gradient(135deg,#ff6fa5,#e85f96)!important;color:#fff!important;border-color:transparent!important;}"
+    # pestañas: iconito centrado arriba de cada botón
+    ".tabicon{text-align:center;height:30px;margin-bottom:2px;display:flex;align-items:center;justify-content:center;}"
+    # botones de pestaña (secondary = inactivo blanco, primary = activo rosa)
+    ".stButton>button[kind='secondary']{background:#fff!important;color:#9c7688!important;"
+    "border:1.5px solid #ffd6e6!important;box-shadow:0 4px 12px rgba(255,111,165,.12)!important;"
+    "border-radius:26px!important;font-family:'Baloo 2',sans-serif!important;font-weight:700!important;padding:8px 10px!important;}"
+    ".stButton>button[kind='secondary']:hover{background:#ffe9f2!important;color:#c94b81!important;border-color:#ffb9d6!important;}"
+    ".stButton>button[kind='primary']{border-radius:26px!important;padding:8px 10px!important;}"
     "</style>",
     unsafe_allow_html=True,
 )
@@ -337,20 +340,28 @@ HEADER = ("<div class='header'><h1>✿ Mi Rincon Manhwa ✿</h1>"
 # 1) HEADER (solo visual) en un componente
 components.html(CSS + HEADER, height=140, scrolling=False)
  
-# Pestañas NATIVAS (funcionan seguro). Usamos pills con el texto e icono en emoji.
-tab_keys = ["todos", "leyendo", "finalizado", "pausa", "cancelada"]
-tab_labels_native = {
-    "todos": "✿ Todos (" + str(len(manhwas)) + ")",
-    "leyendo": "📖 Leyendo (" + str(count("leyendo")) + ")",
-    "finalizado": "✅ Finalizados (" + str(count("finalizado")) + ")",
-    "pausa": "⏸ En pausa (" + str(count("pausa")) + ")",
-    "cancelada": "✖ Canceladas (" + str(count("cancelada")) + ")",
-}
-active_prev = st.session_state.get("active_tab", "todos")
-picked = st.pills("Secciones", tab_keys, format_func=lambda k: tab_labels_native[k],
-                  default=active_prev, label_visibility="collapsed", key="tab_pills")
-active = picked if picked else "todos"
-st.session_state.active_tab = active
+# Pestañas NATIVAS con TUS iconos encima de cada botón (funcionan seguro)
+active = st.session_state.get("active_tab", "todos")
+tab_defs = [
+    ("todos", None, "Todos", len(manhwas)),
+    ("leyendo", ICON["leyendo"], "Leyendo", count("leyendo")),
+    ("finalizado", ICON["finalizado"], "Finalizados", count("finalizado")),
+    ("pausa", ICON["pausa"], "En pausa", count("pausa")),
+    ("cancelada", ICON["cancelada"], "Canceladas", count("cancelada")),
+]
+tab_cols = st.columns(5)
+for tcol, (k, icon_uri, lbl, cnt) in zip(tab_cols, tab_defs):
+    with tcol:
+        icon_html = ("<img src='" + icon_uri + "' style='width:26px;height:26px;object-fit:contain'>") \
+            if icon_uri else "<span style='font-size:22px'>✿</span>"
+        st.markdown("<div class='tabicon " + ("act" if k == active else "") + "'>" + icon_html + "</div>",
+                    unsafe_allow_html=True)
+        btype = "primary" if k == active else "secondary"
+        if st.button(lbl + " (" + str(cnt) + ")", key="tabbtn_" + k,
+                     use_container_width=True, type=btype):
+            st.session_state.active_tab = k
+            st.rerun()
+active = st.session_state.get("active_tab", "todos")
  
 # 2) Fila nativa: botón agregar + buscador
 c_add, c_search = st.columns([1, 2], vertical_alignment="center")
