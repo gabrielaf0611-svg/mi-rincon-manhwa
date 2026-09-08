@@ -57,37 +57,6 @@ def cover_uri(m):
  
 manhwas = load()
  
-# ---- Acciones por query params: abrir/cerrar la burbuja de estado y cambiar estado ----
-_qp = st.query_params
-if "ss" in _qp and "to" in _qp:
-    try:
-        _sid = int(_qp["ss"])
-    except Exception:
-        _sid = None
-    _to = _qp["to"]
-    if _sid is not None and _to in STATUSES:
-        for _m in manhwas:
-            if _m["id"] == _sid:
-                _m["status"] = _to
-        save(manhwas)
-    st.session_state.pop("open_status", None)
-    st.session_state.seen_splash = True  # no repetir el opening en esta recarga
-    st.query_params.clear()
-    st.rerun()
-if "sm" in _qp:
-    try:
-        _sid = int(_qp["sm"])
-    except Exception:
-        _sid = None
-    if st.session_state.get("open_status") == _sid:
-        st.session_state.pop("open_status", None)
-    else:
-        st.session_state.open_status = _sid
-    st.session_state.seen_splash = True  # no repetir el opening en esta recarga
-    st.query_params.clear()
-    st.rerun()
- 
- 
 # ---- CSS para la parte de Streamlit ----
 st.markdown(
     '<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">'
@@ -380,20 +349,31 @@ body{font-family:'Nunito',sans-serif;color:#5b3a4a;background:transparent;}
 # CSS para las tarjetas cuando se renderizan de forma NATIVA (sin iframe)
 CARD_CSS = (CSS.replace("<style>", "").replace("</style>", "") +
             ".ncard{margin-bottom:14px;}"
-            # el boton de opciones: iconito redondo en la esquina superior derecha de la tarjeta (como la carpeta)
             "div[data-testid='stColumn']{position:relative;}"
-            "div[data-testid='stPopover']{position:absolute!important;top:12px;right:14px;z-index:10;"
-            "margin:0!important;width:auto!important;}"
-            "div[data-testid='stPopover'] button[data-testid='stPopoverButton']{width:32px!important;min-width:32px!important;"
+            # posicion: badge de ESTADO arriba-izquierda, OPCIONES arriba-derecha
+            "[class*='st-key-stbadge_']{position:absolute!important;top:10px;left:10px;z-index:11;width:auto!important;margin:0!important;}"
+            "[class*='st-key-optpop_']{position:absolute!important;top:10px;right:12px;z-index:10;width:auto!important;margin:0!important;}"
+            # badge de estado: pastilla blanca con tu icono + nombre
+            "[class*='st-key-stbadge_'] button[data-testid='stPopoverButton']{background:rgba(255,255,255,.92)!important;"
+            "color:#e85f96!important;border:1.5px solid #ffd6e6!important;border-radius:20px!important;"
+            "padding:3px 10px!important;min-height:0!important;height:auto!important;font-size:11px!important;font-weight:800!important;"
+            "box-shadow:0 2px 8px rgba(200,75,129,.2)!important;}"
+            "[class*='st-key-stbadge_'] button[data-testid='stPopoverButton']:hover{background:#fff!important;}"
+            "[class*='st-key-stbadge_'] button[data-testid='stPopoverButton'] img{width:14px!important;height:14px!important;"
+            "object-fit:contain;vertical-align:middle;margin-right:3px;display:inline-block;}"
+            # opciones: iconito redondo
+            "[class*='st-key-optpop_'] button[data-testid='stPopoverButton']{width:32px!important;min-width:32px!important;"
             "height:32px!important;padding:0!important;background:rgba(255,255,255,.92)!important;color:#e85f96!important;"
             "border:1.5px solid #ffd6e6!important;border-radius:50%!important;"
             "box-shadow:0 2px 8px rgba(200,75,129,.25)!important;display:flex;align-items:center;justify-content:center;}"
-            "div[data-testid='stPopover'] button[data-testid='stPopoverButton']:hover{background:#fff!important;"
-            "color:#c94b81!important;transform:scale(1.1);}"
-            # ocultar el chevron 'expand_more' (icono material que Streamlit agrega)
+            "[class*='st-key-optpop_'] button[data-testid='stPopoverButton']:hover{background:#fff!important;color:#c94b81!important;transform:scale(1.1);}"
+            # ocultar el chevron 'expand_more' en ambos
             "div[data-testid='stPopover'] [data-testid='stIconMaterial']{display:none!important;}"
-            "div[data-testid='stPopover'] button[data-testid='stPopoverButton'] div[aria-hidden='true']{display:none!important;}"
-            "div[data-testid='stPopover'] button[data-testid='stPopoverButton'] p{margin:0!important;font-size:15px!important;}")
+            "button[data-testid='stPopoverButton'] div[aria-hidden='true']{display:none!important;}"
+            "button[data-testid='stPopoverButton'] p{margin:0!important;}"
+            # botones de estado dentro del menu: icono + texto a la izquierda
+            "[class*='st-key-stset_'] button{justify-content:flex-start!important;text-align:left!important;}"
+            "[class*='st-key-stset_'] button img{width:18px!important;height:18px!important;object-fit:contain;margin-right:6px;vertical-align:middle;}")
  
  
 HEADER = ("<div class='header'><h1>✿ Mi Rincon Manhwa ✿</h1>"
@@ -471,24 +451,9 @@ def card_inner_html(m):
     comment = ("<div class='comment'>💬 " + esc(m.get("comment")) + "</div>") if m.get("comment") else ""
     # las estrellas solo salen si hay rating
     stars_html = ("<div class='stars'>" + stars(m.get("rating", 0)) + "</div>") if m.get("rating", 0) else ""
-    mid = str(m["id"])
-    # badge de estado clickeable (abre la burbuja de estados)
-    badge = ("<a class='badge' href='?sm=" + mid + "' target='_self' title='Cambiar estado'>"
-             "<img src='" + ICON[m["status"]] + "'> " + STATUSES[m["status"]] + " <span class='bcaret'>▾</span></a>")
-    # burbuja de estados (solo si esta abierta para este manhwa)
-    status_bubble = ""
-    if st.session_state.get("open_status") == m["id"]:
-        opts = ""
-        for k, lbl in STATUSES.items():
-            sel = " sel" if m["status"] == k else ""
-            chk = " ✓" if m["status"] == k else ""
-            opts += ("<a class='smopt" + sel + "' href='?ss=" + mid + "&to=" + k + "' target='_self'>"
-                     "<img src='" + ICON[k] + "'><span>" + lbl + "</span><span class='smchk'>" + chk + "</span></a>")
-        status_bubble = "<div class='statusmenu'>" + opts + "</div>"
     return (
         "<div class='card ncard'>"
         "<div class='cover'>" + cover_img + "</div>"
-        + badge + status_bubble +
         "<div class='body'>"
         "<div class='title-row'><div class='title'>" + esc(m["title"]) + "</div>" + drive + "</div>"
         + author + "<div class='chips'>" + chips + "</div>"
@@ -509,24 +474,41 @@ else:
         cols = st.columns(3)
         for col, m in zip(cols, visible[row_start:row_start + 3]):
             with col:
-                with st.popover("✏️", use_container_width=False):
-                    st.markdown("**" + m["title"] + "**")
-                    pc1, pc2 = st.columns(2)
-                    with pc1:
-                        if st.button("✏️ Editar", key="ed_" + str(m["id"]), use_container_width=True):
-                            st.session_state["open_edit_id"] = m["id"]
-                            st.rerun()
-                    with pc2:
-                        if st.button("🗑 Eliminar", key="dl_" + str(m["id"]), use_container_width=True):
-                            st.session_state["confirm_del_" + str(m["id"])] = True
-                            st.rerun()
-                    if st.session_state.get("confirm_del_" + str(m["id"])):
-                        st.warning("¿Seguro? Esto no se puede deshacer.")
-                        if st.button("Sí, eliminar", key="dy_" + str(m["id"]), use_container_width=True):
-                            manhwas[:] = [x for x in manhwas if x["id"] != m["id"]]
-                            save(manhwas)
-                            st.session_state.pop("confirm_del_" + str(m["id"]), None)
-                            st.rerun()
+                mid = str(m["id"])
+                # ---- Popover de ESTADO (arriba izquierda, con tu icono) — nativo, sin recarga ----
+                with st.container(key="stbadge_" + mid):
+                    with st.popover("![](" + ICON[m["status"]] + ") " + STATUSES[m["status"]],
+                                    use_container_width=False):
+                        st.markdown("**Cambiar estado**")
+                        for k, lbl in STATUSES.items():
+                            marca = "✓ " if m["status"] == k else ""
+                            if st.button("![](" + ICON[k] + ") " + marca + lbl,
+                                         key="stset_" + mid + "_" + k, use_container_width=True):
+                                for _m in manhwas:
+                                    if _m["id"] == m["id"]:
+                                        _m["status"] = k
+                                save(manhwas)
+                                st.rerun()
+                # ---- Popover de OPCIONES (arriba derecha) ----
+                with st.container(key="optpop_" + mid):
+                    with st.popover("✏️", use_container_width=False):
+                        st.markdown("**" + m["title"] + "**")
+                        pc1, pc2 = st.columns(2)
+                        with pc1:
+                            if st.button("✏️ Editar", key="ed_" + mid, use_container_width=True):
+                                st.session_state["open_edit_id"] = m["id"]
+                                st.rerun()
+                        with pc2:
+                            if st.button("🗑 Eliminar", key="dl_" + mid, use_container_width=True):
+                                st.session_state["confirm_del_" + mid] = True
+                                st.rerun()
+                        if st.session_state.get("confirm_del_" + mid):
+                            st.warning("¿Seguro? Esto no se puede deshacer.")
+                            if st.button("Sí, eliminar", key="dy_" + mid, use_container_width=True):
+                                manhwas[:] = [x for x in manhwas if x["id"] != m["id"]]
+                                save(manhwas)
+                                st.session_state.pop("confirm_del_" + mid, None)
+                                st.rerun()
                 st.markdown(card_inner_html(m), unsafe_allow_html=True)
  
 # Abrir el diálogo de editar DESPUÉS de cerrar el recuadro de opciones
