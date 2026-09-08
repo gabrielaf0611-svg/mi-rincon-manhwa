@@ -456,7 +456,8 @@ else:
                     pc1, pc2 = st.columns(2)
                     with pc1:
                         if st.button("✏️ Editar", key="ed_" + str(m["id"]), use_container_width=True):
-                            edit_dialog(m)
+                            st.session_state["open_edit_id"] = m["id"]
+                            st.rerun()
                     with pc2:
                         if st.button("🗑 Eliminar", key="dl_" + str(m["id"]), use_container_width=True):
                             st.session_state["confirm_del_" + str(m["id"])] = True
@@ -469,4 +470,11 @@ else:
                             st.session_state.pop("confirm_del_" + str(m["id"]), None)
                             st.rerun()
                 st.markdown(card_inner_html(m), unsafe_allow_html=True)
+ 
+# Abrir el diálogo de editar DESPUÉS de cerrar el recuadro de opciones
+if st.session_state.get("open_edit_id") is not None:
+    _eid = st.session_state.pop("open_edit_id")
+    _target = next((x for x in manhwas if x["id"] == _eid), None)
+    if _target:
+        edit_dialog(_target)
  
